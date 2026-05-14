@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   Repeat, Truck, Droplets, X, LogOut, Settings,
-  Tag, LayoutList, FileImage,
+  Tag, LayoutList, FileImage, Store,
 } from "lucide-react";
 import { adminSignOut } from "@/lib/supabase";
 
