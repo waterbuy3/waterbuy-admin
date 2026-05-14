@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Truck, Phone, Star, MapPin, Package, Plus, X } from "lucide-react";
+import { Truck, Phone, Star, MapPin, Package, Plus, X, Pencil } from "lucide-react";
+import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
 import { isConfigured } from "@/lib/supabase";
 import { type Driver } from "@/lib/data";
@@ -52,22 +53,30 @@ export function Drivers() {
   const { data: drivers, loading } = useCollection<Driver>("drivers", { orderBy: "created_at", ascending: true });
   const [addOpen, setAddOpen] = useState(false);
 
-  const toggleDuty = (d: Driver) => {
+  const toggleDuty = async (d: Driver) => {
     const next = d.status === "off_duty" ? "available" : d.status === "available" ? "off_duty" : d.status;
-    db_update("drivers", d.id, { status: next });
+    await db_update("drivers", d.id, { status: next });
+    toast.success(`${d.name.split(" ")[0]} marked ${next.replace("_", " ")}`);
   };
 
   const saveDriver = async (form: Omit<Driver, "id">) => {
-    await db_add("drivers", form as Record<string, unknown>);
-    setAddOpen(false);
+    try {
+      await db_add("drivers", form as Record<string, unknown>);
+      toast.success(`${form.name} added as driver`);
+      setAddOpen(false);
+    } catch {
+      toast.error("Failed to add driver.");
+    }
   };
 
   const deleteDriver = async (d: Driver) => {
-    if (confirm(`Remove driver "${d.name}"?`)) await db_delete("drivers", d.id);
+    if (!confirm(`Remove driver "${d.name}"?`)) return;
+    await db_delete("drivers", d.id);
+    toast.success(`${d.name} removed`);
   };
 
   if (!isConfigured) {
-    return <div className="p-6 text-center text-slate-400 text-sm">Firebase not configured.</div>;
+    return <div className="p-6 text-center text-slate-400 text-sm">Supabase not configured.</div>;
   }
 
   return (

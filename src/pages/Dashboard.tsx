@@ -2,6 +2,7 @@ import {
   ShoppingBag, Truck, Package,
   TrendingUp, AlertTriangle, CheckCircle2, ChevronRight,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -69,6 +70,7 @@ export function Dashboard() {
     const patch: Record<string, unknown> = { status: next.value };
     if (next.value === "delivered") patch.delivered_at = new Date().toISOString();
     await db_update("orders", order.id, patch);
+    toast.success(`${order.customer}'s order → ${next.value.replace("_", " ")}`);
   };
 
   return (

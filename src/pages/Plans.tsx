@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Pencil, Trash2, Star, X, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
 import { type SubscriptionPlan } from "@/lib/data";
 import { isConfigured } from "@/lib/supabase";
@@ -118,25 +119,35 @@ export function Plans() {
 
   const savePlan = async (form: Omit<SubscriptionPlan, "id">) => {
     const current = editing && "id" in editing ? editing as SubscriptionPlan : null;
-    if (current?.id) {
-      await db_update("subscription_plans", current.id, form as Record<string, unknown>);
-    } else {
-      await db_add("subscription_plans", form as Record<string, unknown>);
+    try {
+      if (current?.id) {
+        await db_update("subscription_plans", current.id, form as Record<string, unknown>);
+        toast.success(`"${form.name}" updated`);
+      } else {
+        await db_add("subscription_plans", form as Record<string, unknown>);
+        toast.success(`"${form.name}" plan created`);
+      }
+      setEditing(false);
+    } catch {
+      toast.error("Failed to save plan.");
     }
-    setEditing(false);
   };
 
   const deletePlan = async (p: SubscriptionPlan) => {
-    if (confirm(`Delete plan "${p.name}"?`)) await db_delete("subscription_plans", p.id);
+    if (!confirm(`Delete plan "${p.name}"?`)) return;
+    await db_delete("subscription_plans", p.id);
+    toast.success(`"${p.name}" deleted`);
   };
 
-  const toggleActive = (p: SubscriptionPlan) =>
-    db_update("subscription_plans", p.id, { active: !p.active });
+  const toggleActive = async (p: SubscriptionPlan) => {
+    await db_update("subscription_plans", p.id, { active: !p.active });
+    toast.success(p.active ? `"${p.name}" deactivated` : `"${p.name}" activated`);
+  };
 
   if (!isConfigured) {
     return (
       <div className="p-6 text-center text-slate-400 text-sm">
-        Firebase not configured — copy your <code>.env</code> from the customer app.
+        Supabase not configured — add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.
       </div>
     );
   }

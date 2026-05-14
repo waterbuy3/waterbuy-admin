@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Search, Plus, Pencil, Trash2, Eye, EyeOff, Flame, X, ImageIcon } from "lucide-react";
+import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
 import { uploadProductImage } from "@/lib/storage";
 import { isConfigured } from "@/lib/supabase";
@@ -35,7 +36,7 @@ function EditModal({ product, onSave, onClose }: {
       const url = await uploadProductImage(id, file);
       update("imageUrl", url);
     } catch {
-      alert("Image upload failed. Check Firebase Storage rules.");
+      toast.error("Image upload failed. Check Supabase Storage bucket permissions.");
     } finally {
       setUploading(false);
     }
@@ -158,11 +159,15 @@ export function Products() {
     return matchQ && matchCat;
   });
 
-  const toggleActive = (p: Product) =>
-    db_update("products", p.id, { active: !p.active });
+  const toggleActive = async (p: Product) => {
+    await db_update("products", p.id, { active: !p.active });
+    toast.success(p.active ? `"${p.name}" hidden from customers` : `"${p.name}" is now active`);
+  };
 
   const deleteProduct = async (p: Product) => {
-    if (confirm(`Delete "${p.name}"?`)) await db_delete("products", p.id);
+    if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
+    await db_delete("products", p.id);
+    toast.success(`"${p.name}" deleted`);
   };
 
   const saveProduct = async (form: Omit<Product, "id">) => {
@@ -170,12 +175,18 @@ export function Products() {
     const clean: Record<string, unknown> = Object.fromEntries(
       Object.entries(form).filter(([, v]) => v !== undefined && v !== ""),
     );
-    if (current?.id) {
-      await db_update("products", current.id, clean);
-    } else {
-      await db_add("products", clean);
+    try {
+      if (current?.id) {
+        await db_update("products", current.id, clean);
+        toast.success(`"${form.name}" updated`);
+      } else {
+        await db_add("products", clean);
+        toast.success(`"${form.name}" added`);
+      }
+      setEditing(false);
+    } catch {
+      toast.error("Failed to save product. Try again.");
     }
-    setEditing(false);
   };
 
   const totalRevenue = products.reduce((s, p) => s + (p.price ?? 0) * (p.sold ?? 0), 0);
@@ -183,7 +194,7 @@ export function Products() {
   if (!isConfigured) {
     return (
       <div className="p-6 text-center text-slate-400 text-sm">
-        Firebase not configured — copy your <code>.env</code> from the customer app and seed the database in Settings.
+        Supabase not configured — add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.
       </div>
     );
   }
@@ -234,7 +245,7 @@ export function Products() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-400 text-sm">Loading from Firebase…</div>
+        <div className="text-center py-12 text-slate-400 text-sm">Loading…</div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">

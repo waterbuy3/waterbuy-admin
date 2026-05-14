@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Search, Truck, CheckCircle2, Clock, XCircle, Package } from "lucide-react";
+import { toast } from "sonner";
 import { useCollection, db_update } from "@/lib/hooks";
 import { isConfigured } from "@/lib/supabase";
 import { type Order, type OrderStatus } from "@/lib/data";
@@ -48,11 +49,13 @@ export function Orders() {
     const update: Record<string, unknown> = { status: next };
     if (next === "delivered") update.delivered_at = new Date().toISOString();
     await db_update("orders", id, update);
+    toast.success(`Order → ${next.replace("_", " ")}`);
     if (selected?.id === id) setSelected({ ...selected, status: next, ...(next === "delivered" ? { delivered_at: new Date().toISOString() } : {}) });
   };
 
   const cancel = async (id: string) => {
     await db_update("orders", id, { status: "cancelled" });
+    toast.success("Order cancelled");
     if (selected?.id === id) setSelected({ ...selected, status: "cancelled" });
   };
 

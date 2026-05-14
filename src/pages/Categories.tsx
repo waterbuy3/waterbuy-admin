@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Pencil, Trash2, GripVertical, Eye, EyeOff, X, Check } from "lucide-react";
+import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
 import { type Category } from "@/lib/data";
 import { isConfigured } from "@/lib/supabase";
@@ -110,23 +111,34 @@ export function Categories() {
 
   const saveCategory = async (form: Omit<Category, "id">) => {
     const current = editing && "id" in editing ? editing as Category : null;
-    if (current?.id) {
-      await db_update("categories", current.id, form as Record<string, unknown>);
-    } else {
-      await db_add("categories", form as Record<string, unknown>);
+    try {
+      if (current?.id) {
+        await db_update("categories", current.id, form as Record<string, unknown>);
+        toast.success(`"${form.name}" updated`);
+      } else {
+        await db_add("categories", form as Record<string, unknown>);
+        toast.success(`"${form.name}" category added`);
+      }
+      setEditing(false);
+    } catch {
+      toast.error("Failed to save category.");
     }
-    setEditing(false);
   };
 
-  const toggleActive = (c: Category) => db_update("categories", c.id, { active: !c.active });
+  const toggleActive = async (c: Category) => {
+    await db_update("categories", c.id, { active: !c.active });
+    toast.success(c.active ? `"${c.name}" hidden` : `"${c.name}" activated`);
+  };
   const deleteCategory = async (c: Category) => {
-    if (confirm(`Delete category "${c.name}"?`)) await db_delete("categories", c.id);
+    if (!confirm(`Delete category "${c.name}"?`)) return;
+    await db_delete("categories", c.id);
+    toast.success(`"${c.name}" deleted`);
   };
 
   if (!isConfigured) {
     return (
       <div className="p-6 text-center text-slate-400 text-sm">
-        Firebase not configured — copy your <code>.env</code> from the customer app.
+        Supabase not configured — add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.
       </div>
     );
   }
