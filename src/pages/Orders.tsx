@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Search, Truck, CheckCircle2, Clock, XCircle, Package } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection, db_update } from "@/lib/hooks";
@@ -49,7 +49,7 @@ export function Orders() {
     const update: Record<string, unknown> = { status: next };
     if (next === "delivered") update.delivered_at = new Date().toISOString();
     await db_update("orders", id, update);
-    toast.success(`Order → ${next.replace("_", " ")}`);
+    toast.success(`Order â†’ ${next.replace("_", " ")}`);
     if (selected?.id === id) setSelected({ ...selected, status: next, ...(next === "delivered" ? { delivered_at: new Date().toISOString() } : {}) });
   };
 
@@ -78,7 +78,7 @@ export function Orders() {
         <h2 className="text-lg font-extrabold text-slate-900">Orders</h2>
         <div className="flex-1 relative sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ID, customer, phone…"
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ID, customer, phoneâ€¦"
             className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
         </div>
       </div>
@@ -102,18 +102,18 @@ export function Orders() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 text-left border-b border-slate-100">
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Order ID</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Items</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
+                <tr className="border-b border-slate-100 text-left">
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Order ID</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Customer</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em] hidden md:table-cell">Items</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Amount</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Status</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {loading ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">Loading…</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">Loadingâ€¦</td></tr>
                 ) : filtered.map((o) => {
                   const Icon = statusIcon[o.status as OrderStatus];
                   const canAdvance = STATUS_FLOW.includes(o.status as OrderStatus) &&
@@ -127,7 +127,7 @@ export function Orders() {
                         <p className="text-[10px] text-slate-400">{o.phone}</p>
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-600 hidden md:table-cell">{o.items}</td>
-                      <td className="px-4 py-3.5 font-bold text-slate-900 text-xs">₹{o.total}</td>
+                      <td className="px-4 py-3.5 font-bold text-slate-900 text-xs">â‚¹{o.total}</td>
                       <td className="px-4 py-3.5">
                         <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full border capitalize ${statusColor[o.status as OrderStatus]}`}>
                           <Icon className="h-3 w-3" />{o.status.replace("_", " ")}
@@ -138,7 +138,7 @@ export function Orders() {
                           {canAdvance && (
                             <button onClick={(e) => { e.stopPropagation(); advance(o.id); }}
                               className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors">
-                              Advance →
+                              Advance â†’
                             </button>
                           )}
                           {o.status !== "cancelled" && o.status !== "delivered" && (
@@ -154,7 +154,7 @@ export function Orders() {
                 })}
                 {!loading && filtered.length === 0 && (
                   <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">
-                    {orders.length === 0 ? "No orders yet — they'll appear here when customers place orders." : "No orders match your filter."}
+                    {orders.length === 0 ? "No orders yet â€” they'll appear here when customers place orders." : "No orders match your filter."}
                   </td></tr>
                 )}
               </tbody>
@@ -167,7 +167,7 @@ export function Orders() {
           <div className="hidden lg:block w-72 shrink-0 bg-white rounded-2xl shadow-sm border border-slate-100 p-5 self-start sticky top-20 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-extrabold text-slate-900">{selected.id}</h3>
-              <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+              <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">Ã—</button>
             </div>
             <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full border mb-4 capitalize ${statusColor[selected.status as OrderStatus]}`}>
               {selected.status.replace("_", " ")}
@@ -177,7 +177,7 @@ export function Orders() {
                 { label: "Customer", value: selected.customer },
                 { label: "Phone",    value: selected.phone },
                 { label: "Items",    value: selected.items },
-                { label: "Total",    value: `₹${selected.total}` },
+                { label: "Total",    value: `â‚¹${selected.total}` },
                 { label: "Payment",  value: PAYMENT_LABEL[selected.payment] ?? selected.payment },
                 { label: "Driver",   value: selected.driver || "Unassigned" },
                 { label: "Address",  value: selected.address },
@@ -197,7 +197,7 @@ export function Orders() {
                   return (
                     <div key={s} className="flex items-center gap-1 flex-1">
                       <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${done ? "bg-blue-600" : "bg-slate-200"}`}>
-                        {done && <span className="text-white text-[9px]">✓</span>}
+                        {done && <span className="text-white text-[9px]">âœ“</span>}
                       </div>
                       {i < STATUS_FLOW.length - 1 && <div className={`h-0.5 flex-1 ${i < currentIdx ? "bg-blue-600" : "bg-slate-200"}`} />}
                     </div>
@@ -209,7 +209,7 @@ export function Orders() {
               {STATUS_FLOW.indexOf(selected.status as OrderStatus) < STATUS_FLOW.length - 1 && selected.status !== "cancelled" && (
                 <button onClick={() => advance(selected.id)}
                   className="w-full py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors">
-                  Advance Status →
+                  Advance Status â†’
                 </button>
               )}
               {selected.status !== "cancelled" && selected.status !== "delivered" && (

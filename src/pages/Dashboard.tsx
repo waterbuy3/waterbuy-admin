@@ -30,19 +30,19 @@ const nextStatus: Record<string, { label: string; value: string; color: string }
   in_transit: { label: "Mark Delivered", value: "delivered", color: "bg-emerald-600 hover:bg-emerald-700" },
 };
 
-function StatCard({ title, value, sub, icon: Icon, color }: {
+function StatCard({ title, value, sub, icon: Icon, accent }: {
   title: string; value: string | number; sub: string;
-  icon: React.ElementType; color: string;
+  icon: React.ElementType; accent: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex items-start justify-between gap-4">
-      <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{title}</p>
-        <p className="text-2xl font-extrabold text-slate-900 leading-none mb-1">{value}</p>
-        <p className="text-xs text-slate-400">{sub}</p>
+    <div className={`bg-white rounded-2xl p-5 shadow-sm border-l-[3px] border border-slate-100 flex items-start justify-between gap-4 ${accent}`}>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.07em] mb-2">{title}</p>
+        <p className="text-[26px] font-bold text-slate-900 leading-none mb-1.5 tracking-tight">{value}</p>
+        <p className="text-[11px] text-slate-400 font-medium">{sub}</p>
       </div>
-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${color}`}>
-        <Icon className="h-6 w-6 text-white" />
+      <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+        <Icon className="h-[18px] w-[18px] text-slate-500" />
       </div>
     </div>
   );
@@ -78,10 +78,10 @@ export function Dashboard() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Orders"     value={orders.length}       sub={`${pendingCount} pending`}          icon={ShoppingBag}   color="bg-blue-500"    />
-        <StatCard title="Total Revenue"    value={`₹${totalRevenue.toLocaleString()}`} sub={`${deliveredCount} delivered`} icon={TrendingUp} color="bg-emerald-500" />
-        <StatCard title="Active Schedules" value={activeSchedules}     sub={`${schedules.length} total`}        icon={Package}       color="bg-purple-500"  />
-        <StatCard title="Active Drivers"   value={`${activeDrivers}/${drivers.length}`} sub="on route / available" icon={Truck}     color="bg-amber-500"   />
+        <StatCard title="Total Orders"     value={orders.length}       sub={`${pendingCount} pending`}          icon={ShoppingBag}   accent="border-l-blue-500"    />
+        <StatCard title="Total Revenue"    value={`₹${totalRevenue.toLocaleString()}`} sub={`${deliveredCount} delivered`} icon={TrendingUp} accent="border-l-emerald-500" />
+        <StatCard title="Active Schedules" value={activeSchedules}     sub={`${schedules.length} total`}        icon={Package}       accent="border-l-violet-500"  />
+        <StatCard title="Active Drivers"   value={`${activeDrivers}/${drivers.length}`} sub="on route / available" icon={Truck}     accent="border-l-amber-500"   />
       </div>
 
       {/* Low stock alert + quick order actions */}
@@ -222,11 +222,11 @@ export function Dashboard() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-left">
-                    <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">ID</th>
-                    <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</th>
-                    <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount</th>
-                    <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  <tr className="border-b border-slate-100 text-left">
+                    <th className="px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">ID</th>
+                    <th className="px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Customer</th>
+                    <th className="px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Amount</th>
+                    <th className="px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Search, Plus, Pencil, Trash2, Eye, EyeOff, Flame, X, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
@@ -71,7 +71,7 @@ function EditModal({ product, onSave, onClose }: {
               />
               <label className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 cursor-pointer transition-colors ${uploading ? "opacity-50" : "hover:bg-slate-50"}`}>
                 <ImageIcon className="h-3.5 w-3.5 text-slate-500" />
-                {uploading ? "Uploading…" : "Upload"}
+                {uploading ? "Uploadingâ€¦" : "Upload"}
                 <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} className="hidden" />
               </label>
             </div>
@@ -86,8 +86,8 @@ function EditModal({ product, onSave, onClose }: {
             { label: "Description",    key: "description",  type: "text",   full: true  },
             { label: "Size",           key: "size",         type: "text",   full: false },
             { label: "Unit",           key: "unit",         type: "text",   full: false },
-            { label: "Price (₹)",      key: "price",        type: "number", full: false },
-            { label: "MRP (₹)",        key: "mrp",          type: "number", full: false },
+            { label: "Price (â‚¹)",      key: "price",        type: "number", full: false },
+            { label: "MRP (â‚¹)",        key: "mrp",          type: "number", full: false },
             { label: "Stock",          key: "stock",        type: "number", full: false },
             { label: "Badge",          key: "badge",        type: "text",   full: false },
             { label: "Rating",         key: "rating",       type: "number", full: false },
@@ -138,7 +138,7 @@ function EditModal({ product, onSave, onClose }: {
         <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancel</button>
           <button onClick={handleSave} disabled={saving} className="px-5 py-2 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors disabled:opacity-50">
-            {saving ? "Saving…" : product?.name ? "Save Changes" : "Add Product"}
+            {saving ? "Savingâ€¦" : product?.name ? "Save Changes" : "Add Product"}
           </button>
         </div>
       </div>
@@ -194,7 +194,7 @@ export function Products() {
   if (!isConfigured) {
     return (
       <div className="p-6 text-center text-slate-400 text-sm">
-        Supabase not configured — add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.
+        Supabase not configured â€” add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.
       </div>
     );
   }
@@ -219,7 +219,7 @@ export function Products() {
         <div className="sm:ml-auto flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products…"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search productsâ€¦"
               className="pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-48" />
           </div>
           <button onClick={() => setEditing({})}
@@ -235,7 +235,7 @@ export function Products() {
           { label: "Total Products", value: products.length },
           { label: "Active",         value: products.filter((p) => p.active).length },
           { label: "Popular",        value: products.filter((p) => p.popular).length },
-          { label: "Total Revenue",  value: `₹${(totalRevenue / 100000).toFixed(1)}L` },
+          { label: "Total Revenue",  value: `â‚¹${(totalRevenue / 100000).toFixed(1)}L` },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
             <p className="text-xs text-slate-400 font-medium">{s.label}</p>
@@ -245,20 +245,20 @@ export function Products() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-400 text-sm">Loading…</div>
+        <div className="text-center py-12 text-slate-400 text-sm">Loadingâ€¦</div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-left">
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Category</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Price</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Stock</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Sold</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
+                <tr className="border-b border-slate-100 text-left">
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Product</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em] hidden sm:table-cell">Category</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Price</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em] hidden md:table-cell">Stock</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em] hidden md:table-cell">Sold</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Status</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -275,17 +275,17 @@ export function Products() {
                             {p.popular && <Flame className="h-3 w-3 text-amber-500 fill-amber-400/30" />}
                             {p.badge && <span className="text-[9px] font-extrabold text-blue-600 bg-blue-50 px-1.5 rounded-full">{p.badge}</span>}
                           </div>
-                          <p className="text-[10px] text-slate-400">{p.size} · {p.unit}</p>
+                          <p className="text-[10px] text-slate-400">{p.size} Â· {p.unit}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3.5 text-xs text-slate-600 capitalize hidden sm:table-cell">{p.category}</td>
                     <td className="px-4 py-3.5">
-                      <span className="text-xs font-bold text-slate-900">₹{p.price}</span>
-                      {p.mrp && <span className="text-[10px] text-slate-400 line-through ml-1">₹{p.mrp}</span>}
+                      <span className="text-xs font-bold text-slate-900">â‚¹{p.price}</span>
+                      {p.mrp && <span className="text-[10px] text-slate-400 line-through ml-1">â‚¹{p.mrp}</span>}
                     </td>
                     <td className="px-4 py-3.5 hidden md:table-cell">
-                      <span className={`text-xs font-bold ${(p.stock ?? 0) < 20 ? "text-red-500" : "text-slate-700"}`}>{p.stock ?? "—"}</span>
+                      <span className={`text-xs font-bold ${(p.stock ?? 0) < 20 ? "text-red-500" : "text-slate-700"}`}>{p.stock ?? "â€”"}</span>
                       {(p.stock ?? 0) < 20 && <span className="ml-1 text-[9px] font-extrabold text-red-500 bg-red-50 px-1 rounded">Low</span>}
                     </td>
                     <td className="px-4 py-3.5 text-xs font-semibold text-slate-700 hidden md:table-cell">{(p.sold ?? 0).toLocaleString()}</td>
@@ -314,7 +314,7 @@ export function Products() {
                 ))}
                 {filtered.length === 0 && !loading && (
                   <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
-                    No products found. {products.length === 0 && "Go to Settings → Seed Database to get started."}
+                    No products found. {products.length === 0 && "Go to Settings â†’ Seed Database to get started."}
                   </td></tr>
                 )}
               </tbody>
