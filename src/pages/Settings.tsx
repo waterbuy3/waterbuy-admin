@@ -9,6 +9,12 @@ import { seedDatabase, isSeeded } from "@/lib/seed";
 import { isConfigured, supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
+interface DeliveryArea {
+  pincode: string;
+  name: string;
+  etaMins: number;
+}
+
 interface DeliveryConfig {
   fee: number;
   freeAbove: number;
@@ -20,6 +26,7 @@ interface DeliveryConfig {
   codEnabled: boolean;
   upiEnabled: boolean;
   upiId: string;
+  areas: DeliveryArea[];
 }
 
 const DEFAULT_DELIVERY: DeliveryConfig = {
@@ -33,6 +40,7 @@ const DEFAULT_DELIVERY: DeliveryConfig = {
   codEnabled: true,
   upiEnabled: true,
   upiId: "",
+  areas: [],
 };
 
 type Toggle = { label: string; description: string; value: boolean };
@@ -75,6 +83,9 @@ export function Settings() {
   const [deliverySaving, setDeliverySaving] = useState(false);
   const [newSlot, setNewSlot] = useState("");
   const [newFreq, setNewFreq] = useState("");
+  const [newAreaPincode, setNewAreaPincode] = useState("");
+  const [newAreaName, setNewAreaName] = useState("");
+  const [newAreaEta, setNewAreaEta] = useState(30);
 
   const [seedLogs, setSeedLogs] = useState<string[]>([]);
   const [seeding,  setSeeding]  = useState(false);
@@ -277,6 +288,84 @@ export function Settings() {
               placeholder="560001, 560002, 560003"
               className={fieldCls}
             />
+          </div>
+
+          {/* Per-Area Delivery Times */}
+          <div>
+            <p className="text-xs font-semibold text-slate-500 mb-2">Per-Area Delivery Times</p>
+            <p className="text-[11px] text-slate-400 mb-3">Override the default ETA for specific pincodes. Customer sees the ETA for their saved address.</p>
+            <div className="space-y-2 mb-3">
+              {(delivery.areas ?? []).map((area, i) => (
+                <div key={i} className="flex gap-2 items-center bg-slate-50 rounded-xl px-3 py-2">
+                  <input
+                    value={area.pincode}
+                    onChange={(e) => setD("areas", delivery.areas.map((a, idx) => idx === i ? { ...a, pincode: e.target.value } : a))}
+                    placeholder="560001"
+                    className="w-24 px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <input
+                    value={area.name}
+                    onChange={(e) => setD("areas", delivery.areas.map((a, idx) => idx === i ? { ...a, name: e.target.value } : a))}
+                    placeholder="Area name"
+                    className="flex-1 px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="number" min={5}
+                      value={area.etaMins}
+                      onChange={(e) => setD("areas", delivery.areas.map((a, idx) => idx === i ? { ...a, etaMins: +e.target.value } : a))}
+                      className="w-14 px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <span className="text-[10px] text-slate-400">min</span>
+                  </div>
+                  <button
+                    onClick={() => setD("areas", delivery.areas.filter((_, idx) => idx !== i))}
+                    className="p-1 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 items-end">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-400">Pincode</span>
+                <input
+                  value={newAreaPincode}
+                  onChange={(e) => setNewAreaPincode(e.target.value)}
+                  placeholder="560001"
+                  className="w-24 px-2 py-1.5 text-sm bg-slate-50 border border-dashed border-slate-300 rounded-xl focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1 flex-1">
+                <span className="text-[10px] text-slate-400">Area name</span>
+                <input
+                  value={newAreaName}
+                  onChange={(e) => setNewAreaName(e.target.value)}
+                  placeholder="Koramangala"
+                  className="w-full px-2 py-1.5 text-sm bg-slate-50 border border-dashed border-slate-300 rounded-xl focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-400">ETA (min)</span>
+                <input
+                  type="number" min={5}
+                  value={newAreaEta}
+                  onChange={(e) => setNewAreaEta(+e.target.value)}
+                  className="w-16 px-2 py-1.5 text-sm bg-slate-50 border border-dashed border-slate-300 rounded-xl focus:outline-none"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  if (!newAreaPincode.trim() || !newAreaName.trim()) return;
+                  setD("areas", [...(delivery.areas ?? []), { pincode: newAreaPincode.trim(), name: newAreaName.trim(), etaMins: newAreaEta }]);
+                  setNewAreaPincode(""); setNewAreaName(""); setNewAreaEta(30);
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors"
+              >
+                <Plus className="h-3 w-3" /> Add
+              </button>
+            </div>
           </div>
         </div>
       </div>
