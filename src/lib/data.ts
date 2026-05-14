@@ -17,16 +17,14 @@ export interface Order {
 }
 
 export interface Customer {
-  id: string;
+  uid: string;
   name: string;
   phone: string;
   email: string;
-  tier: MemberTier;
-  orders: number;
-  wallet: number;
-  litres: number;
-  joinedAt: string;
-  lastOrder: string;
+  membership_tier: string;
+  orders_count: number;
+  litres_delivered: number;
+  created_at: string;
 }
 
 export interface Product {
@@ -85,15 +83,19 @@ export interface HomeContent {
 
 export interface Subscription {
   id: string;
+  user_id: string;
   customer: string;
   phone: string;
-  plan: string;
+  product_name: string;
+  product_id: string;
+  quantity: number;
   frequency: string;
-  items: string;
-  nextDelivery: string;
-  amount: number;
+  start_date: string;
+  time_slot: string;
+  address: string;
+  total: number;
   status: "active" | "paused" | "cancelled";
-  startedAt: string;
+  created_at: string;
 }
 
 export interface Driver {

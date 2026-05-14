@@ -11,22 +11,19 @@ const statusStyle = {
 };
 
 export function Subscriptions() {
-  const { data: subs, loading } = useCollection<Subscription>("subscriptions");
+  const { data: subs, loading } = useCollection<Subscription>("schedules", { orderBy: "created_at", ascending: false });
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "paused" | "cancelled">("all");
 
   const filtered = subs.filter((s) => {
     const q = search.toLowerCase();
-    const matchSearch = !q || s.customer.toLowerCase().includes(q) || s.phone.includes(q) || s.plan.toLowerCase().includes(q);
+    const matchSearch = !q || s.customer.toLowerCase().includes(q) || s.phone.includes(q) || s.product_name.toLowerCase().includes(q);
     const matchFilter = filter === "all" || s.status === filter;
     return matchSearch && matchFilter;
   });
 
   const updateStatus = (id: string, status: Subscription["status"]) => {
-    const patch: Record<string, unknown> = { status };
-    if (status === "paused")    patch.nextDelivery = "Paused";
-    if (status === "cancelled") patch.nextDelivery = "Cancelled";
-    db_update("subscriptions", id, patch);
+    db_update("schedules", id, { status });
   };
 
   const counts = {
@@ -36,19 +33,19 @@ export function Subscriptions() {
     cancelled: subs.filter((s) => s.status === "cancelled").length,
   };
 
-  const monthlyRevenue = subs.filter((s) => s.status === "active").reduce((sum, s) => sum + s.amount, 0);
+  const monthlyRevenue = subs.filter((s) => s.status === "active").reduce((sum, s) => sum + s.total, 0);
 
   if (!isConfigured) {
-    return <div className="p-6 text-center text-slate-400 text-sm">Firebase not configured.</div>;
+    return <div className="p-6 text-center text-slate-400 text-sm">Supabase not configured.</div>;
   }
 
   return (
     <div className="p-4 lg:p-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-        <h2 className="text-lg font-extrabold text-slate-900">Subscriptions</h2>
+        <h2 className="text-lg font-extrabold text-slate-900">Scheduled Deliveries</h2>
         <div className="sm:ml-auto relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Customer, plan, phone…"
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Customer, product, phone…"
             className="pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-56" />
         </div>
       </div>
@@ -59,7 +56,7 @@ export function Subscriptions() {
           { label: "Active",       value: counts.active,                          color: "text-emerald-600" },
           { label: "Paused",       value: counts.paused,                          color: "text-amber-600"   },
           { label: "Cancelled",    value: counts.cancelled,                       color: "text-red-500"     },
-          { label: "MRR (Active)", value: `₹${monthlyRevenue.toLocaleString()}`,  color: "text-blue-600"   },
+          { label: "Monthly Rev",  value: `₹${monthlyRevenue.toLocaleString()}`,  color: "text-blue-600"   },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
             <p className="text-xs text-slate-400 font-medium">{s.label}</p>
@@ -99,9 +96,9 @@ export function Subscriptions() {
 
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs flex-1">
                   {[
-                    { lbl: "Plan",   val: s.plan            },
-                    { lbl: "Items",  val: s.items           },
-                    { lbl: "Amount", val: `₹${s.amount}/mo`, cls: "font-extrabold text-blue-600" },
+                    { lbl: "Product",   val: s.product_name },
+                    { lbl: "Qty",       val: `×${s.quantity}` },
+                    { lbl: "Amount",    val: `₹${s.total}/mo`, cls: "font-extrabold text-blue-600" },
                   ].map(({ lbl, val, cls }) => (
                     <div key={lbl}>
                       <p className="text-slate-400 text-[10px] font-medium">{lbl}</p>
@@ -109,9 +106,9 @@ export function Subscriptions() {
                     </div>
                   ))}
                   <div>
-                    <p className="text-slate-400 text-[10px] font-medium">Next Delivery</p>
+                    <p className="text-slate-400 text-[10px] font-medium">Start Date</p>
                     <p className="font-bold text-slate-800 flex items-center gap-1">
-                      <Calendar className="h-3 w-3 text-slate-400" />{s.nextDelivery}
+                      <Calendar className="h-3 w-3 text-slate-400" />{s.start_date} {s.time_slot}
                     </p>
                   </div>
                 </div>
@@ -133,19 +130,21 @@ export function Subscriptions() {
                     </button>
                   )}
                   {s.status !== "cancelled" && (
-                    <button onClick={() => { if (confirm("Cancel this subscription?")) updateStatus(s.id, "cancelled"); }} title="Cancel"
+                    <button onClick={() => { if (confirm("Cancel this schedule?")) updateStatus(s.id, "cancelled"); }} title="Cancel"
                       className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors">
                       <XCircle style={{ height: 18, width: 18 }} />
                     </button>
                   )}
                 </div>
               </div>
-              <p className="text-[10px] text-slate-400 mt-2.5 ml-[52px]">Started {s.startedAt} · {s.frequency}</p>
+              <p className="text-[10px] text-slate-400 mt-2.5 ml-[52px]">
+                Started {s.created_at ? new Date(s.created_at).toLocaleDateString() : "—"} · {s.frequency} · {s.address}
+              </p>
             </div>
           ))}
           {filtered.length === 0 && !loading && (
             <div className="text-center py-12 text-slate-400 text-sm">
-              {subs.length === 0 ? "No subscriptions yet — they'll appear when customers subscribe." : "No subscriptions found."}
+              {subs.length === 0 ? "No scheduled deliveries yet — they'll appear when customers schedule." : "No schedules match your filter."}
             </div>
           )}
         </div>
