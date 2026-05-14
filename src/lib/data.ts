@@ -12,8 +12,8 @@ export interface Order {
   status: OrderStatus;
   payment: PaymentMethod;
   driver?: string;
-  placedAt: string;
-  deliveredAt?: string;
+  placed_at: string;
+  delivered_at?: string;
 }
 
 export interface Customer {
@@ -63,10 +63,10 @@ export interface SubscriptionPlan {
   id: string;
   name: string;
   description: string;
-  pricePerMonth: number;
+  price_per_month: number;
   features: string[];
   popular: boolean;
-  deliveryFrequency: string;
+  delivery_frequency: string;
   active: boolean;
 }
 
@@ -110,16 +110,16 @@ export interface Driver {
 /* ── Mock data ── */
 
 export const ORDERS: Order[] = [
-  { id: "ORD-5021", customer: "Priya Mehta",       phone: "+91 98765 43210", address: "12/3 Green Valley, Block A",     items: "2×5L Cans",           total: 180,  status: "pending",    payment: "wallet", driver: undefined,    placedAt: "Today 10:30 AM" },
-  { id: "ORD-5020", customer: "Rahul Kumar",        phone: "+91 87654 32109", address: "Floor 4, Tech Park, HITEC City", items: "1×25L Dispenser Can",  total: 320,  status: "in_transit", payment: "upi",    driver: "Suresh D",   placedAt: "Today 9:45 AM" },
-  { id: "ORD-5019", customer: "Ananya Singh",       phone: "+91 76543 21098", address: "Flat 201, Sunrise Apts",         items: "1×20L Mini Tanker",    total: 1500, status: "confirmed",  payment: "upi",    driver: "Ravi K",     placedAt: "Today 9:00 AM" },
-  { id: "ORD-5018", customer: "Kiran Verma",        phone: "+91 65432 10987", address: "52 MG Road",                     items: "24×500ml Bundle",       total: 400,  status: "delivered",  payment: "cod",    driver: "Amit S",     placedAt: "Yesterday 4:00 PM", deliveredAt: "Yesterday 6:20 PM" },
-  { id: "ORD-5017", customer: "Meera Thampi",       phone: "+91 54321 09876", address: "8-2-120 Banjara Hills",          items: "1×1L Bottle × 5",      total: 175,  status: "delivered",  payment: "wallet", driver: "Suresh D",   placedAt: "Yesterday 2:00 PM", deliveredAt: "Yesterday 3:45 PM" },
-  { id: "ORD-5016", customer: "Vikram Nair",        phone: "+91 43210 98765", address: "Plot 45, Jubilee Hills",         items: "1×500ml Bottle",        total: 20,   status: "cancelled",  payment: "wallet", driver: undefined,    placedAt: "Yesterday 11:00 AM" },
-  { id: "ORD-5015", customer: "Sneha Reddy",        phone: "+91 32109 87654", address: "Flat 5B, Palm Grove Society",    items: "1×10L Mega Can",        total: 160,  status: "delivered",  payment: "upi",    driver: "Ravi K",     placedAt: "May 5, 8:00 AM", deliveredAt: "May 5, 9:30 AM" },
-  { id: "ORD-5014", customer: "Arjun Prasad",       phone: "+91 21098 76543", address: "23 Koramangala 6th Block",       items: "Wedding Pack 48×500ml", total: 750,  status: "delivered",  payment: "card",   driver: "Amit S",     placedAt: "May 4, 3:00 PM", deliveredAt: "May 4, 6:00 PM" },
-  { id: "ORD-5013", customer: "Divya Krishnan",     phone: "+91 10987 65432", address: "Flat 901, Sky Tower",            items: "1×25L Dispenser Can",   total: 320,  status: "delivered",  payment: "wallet", driver: "Suresh D",   placedAt: "May 4, 10:00 AM", deliveredAt: "May 4, 11:30 AM" },
-  { id: "ORD-5012", customer: "Rohit Sharma",       phone: "+91 90876 54321", address: "12 Whitefield Main Road",        items: "Standard Tanker 5000L", total: 2000, status: "delivered",  payment: "upi",    driver: "Ravi K",     placedAt: "May 3, 7:00 AM", deliveredAt: "May 3, 9:00 AM" },
+  { id: "ORD-5021", customer: "Priya Mehta",       phone: "+91 98765 43210", address: "12/3 Green Valley, Block A",     items: "2×5L Cans",           total: 180,  status: "pending",    payment: "wallet", driver: undefined,    placed_at: "Today 10:30 AM" },
+  { id: "ORD-5020", customer: "Rahul Kumar",        phone: "+91 87654 32109", address: "Floor 4, Tech Park, HITEC City", items: "1×25L Dispenser Can",  total: 320,  status: "in_transit", payment: "upi",    driver: "Suresh D",   placed_at: "Today 9:45 AM" },
+  { id: "ORD-5019", customer: "Ananya Singh",       phone: "+91 76543 21098", address: "Flat 201, Sunrise Apts",         items: "1×20L Mini Tanker",    total: 1500, status: "confirmed",  payment: "upi",    driver: "Ravi K",     placed_at: "Today 9:00 AM" },
+  { id: "ORD-5018", customer: "Kiran Verma",        phone: "+91 65432 10987", address: "52 MG Road",                     items: "24×500ml Bundle",       total: 400,  status: "delivered",  payment: "cod",    driver: "Amit S",     placed_at: "Yesterday 4:00 PM", delivered_at: "Yesterday 6:20 PM" },
+  { id: "ORD-5017", customer: "Meera Thampi",       phone: "+91 54321 09876", address: "8-2-120 Banjara Hills",          items: "1×1L Bottle × 5",      total: 175,  status: "delivered",  payment: "wallet", driver: "Suresh D",   placed_at: "Yesterday 2:00 PM", delivered_at: "Yesterday 3:45 PM" },
+  { id: "ORD-5016", customer: "Vikram Nair",        phone: "+91 43210 98765", address: "Plot 45, Jubilee Hills",         items: "1×500ml Bottle",        total: 20,   status: "cancelled",  payment: "wallet", driver: undefined,    placed_at: "Yesterday 11:00 AM" },
+  { id: "ORD-5015", customer: "Sneha Reddy",        phone: "+91 32109 87654", address: "Flat 5B, Palm Grove Society",    items: "1×10L Mega Can",        total: 160,  status: "delivered",  payment: "upi",    driver: "Ravi K",     placed_at: "May 5, 8:00 AM", delivered_at: "May 5, 9:30 AM" },
+  { id: "ORD-5014", customer: "Arjun Prasad",       phone: "+91 21098 76543", address: "23 Koramangala 6th Block",       items: "Wedding Pack 48×500ml", total: 750,  status: "delivered",  payment: "card",   driver: "Amit S",     placed_at: "May 4, 3:00 PM", delivered_at: "May 4, 6:00 PM" },
+  { id: "ORD-5013", customer: "Divya Krishnan",     phone: "+91 10987 65432", address: "Flat 901, Sky Tower",            items: "1×25L Dispenser Can",   total: 320,  status: "delivered",  payment: "wallet", driver: "Suresh D",   placed_at: "May 4, 10:00 AM", delivered_at: "May 4, 11:30 AM" },
+  { id: "ORD-5012", customer: "Rohit Sharma",       phone: "+91 90876 54321", address: "12 Whitefield Main Road",        items: "Standard Tanker 5000L", total: 2000, status: "delivered",  payment: "upi",    driver: "Ravi K",     placed_at: "May 3, 7:00 AM", delivered_at: "May 3, 9:00 AM" },
 ];
 
 export const CUSTOMERS: Customer[] = [

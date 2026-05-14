@@ -46,9 +46,9 @@ export function Orders() {
     const next = STATUS_FLOW[idx + 1];
     if (!next) return;
     const update: Record<string, unknown> = { status: next };
-    if (next === "delivered") update.deliveredAt = new Date().toLocaleString();
+    if (next === "delivered") update.delivered_at = new Date().toISOString();
     await db_update("orders", id, update);
-    if (selected?.id === id) setSelected({ ...selected, status: next, ...(next === "delivered" ? { deliveredAt: "Just now" } : {}) });
+    if (selected?.id === id) setSelected({ ...selected, status: next, ...(next === "delivered" ? { delivered_at: new Date().toISOString() } : {}) });
   };
 
   const cancel = async (id: string) => {

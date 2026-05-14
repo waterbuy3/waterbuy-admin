@@ -10,17 +10,17 @@ function Modal({ plan, onSave, onClose }: {
   onClose: () => void;
 }) {
   const blank: Omit<SubscriptionPlan, "id"> = {
-    name: "", description: "", pricePerMonth: 0, features: [""],
-    popular: false, deliveryFrequency: "Daily", active: true,
+    name: "", description: "", price_per_month: 0, features: [""],
+    popular: false, delivery_frequency: "Daily", active: true,
   };
   const [form, setForm] = useState<Omit<SubscriptionPlan, "id">>(
     plan ? {
       name: plan.name ?? "",
       description: plan.description ?? "",
-      pricePerMonth: plan.pricePerMonth ?? 0,
+      price_per_month: plan.price_per_month ?? 0,
       features: plan.features?.length ? [...plan.features] : [""],
       popular: plan.popular ?? false,
-      deliveryFrequency: plan.deliveryFrequency ?? "Daily",
+      delivery_frequency: plan.delivery_frequency ?? "Daily",
       active: plan.active ?? true,
     } : blank,
   );
@@ -46,8 +46,8 @@ function Modal({ plan, onSave, onClose }: {
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: "Plan Name",         key: "name",              type: "text"   },
-              { label: "Price / Month (₹)", key: "pricePerMonth",     type: "number" },
-              { label: "Delivery Frequency",key: "deliveryFrequency", type: "text"   },
+              { label: "Price / Month (₹)", key: "price_per_month",     type: "number" },
+              { label: "Delivery Frequency",key: "delivery_frequency", type: "text"   },
             ].map(({ label, key, type }) => (
               <div key={key} className={key === "name" ? "col-span-2" : ""}>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">{label}</label>
@@ -112,26 +112,26 @@ function Modal({ plan, onSave, onClose }: {
 }
 
 export function Plans() {
-  const { data: plans, loading } = useCollection<SubscriptionPlan>("subscriptionPlans");
+  const { data: plans, loading } = useCollection<SubscriptionPlan>("subscription_plans");
   const [editing, setEditing] = useState<Partial<SubscriptionPlan> | null | false>(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const savePlan = async (form: Omit<SubscriptionPlan, "id">) => {
     const current = editing && "id" in editing ? editing as SubscriptionPlan : null;
     if (current?.id) {
-      await db_update("subscriptionPlans", current.id, form as Record<string, unknown>);
+      await db_update("subscription_plans", current.id, form as Record<string, unknown>);
     } else {
-      await db_add("subscriptionPlans", form as Record<string, unknown>);
+      await db_add("subscription_plans", form as Record<string, unknown>);
     }
     setEditing(false);
   };
 
   const deletePlan = async (p: SubscriptionPlan) => {
-    if (confirm(`Delete plan "${p.name}"?`)) await db_delete("subscriptionPlans", p.id);
+    if (confirm(`Delete plan "${p.name}"?`)) await db_delete("subscription_plans", p.id);
   };
 
   const toggleActive = (p: SubscriptionPlan) =>
-    db_update("subscriptionPlans", p.id, { active: !p.active });
+    db_update("subscription_plans", p.id, { active: !p.active });
 
   if (!isConfigured) {
     return (
@@ -141,7 +141,7 @@ export function Plans() {
     );
   }
 
-  const mrr = plans.filter((p) => p.active).reduce((s, p) => s + p.pricePerMonth, 0);
+  const mrr = plans.filter((p) => p.active).reduce((s, p) => s + p.price_per_month, 0);
 
   return (
     <div className="p-4 lg:p-6 animate-fade-in max-w-3xl">
@@ -196,10 +196,10 @@ export function Plans() {
                         ? <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Active</span>
                         : <span className="text-[10px] font-extrabold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">Hidden</span>}
                     </div>
-                    <p className="text-xs text-slate-500">{p.description} · {p.deliveryFrequency}</p>
+                    <p className="text-xs text-slate-500">{p.description} · {p.delivery_frequency}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <p className="text-lg font-extrabold text-blue-600">₹{p.pricePerMonth.toLocaleString()}<span className="text-xs text-slate-400 font-medium">/mo</span></p>
+                    <p className="text-lg font-extrabold text-blue-600">₹{p.price_per_month.toLocaleString()}<span className="text-xs text-slate-400 font-medium">/mo</span></p>
                     <div className="flex gap-1">
                       <button onClick={() => toggleActive(p)} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${p.active ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"}`}>
                         {p.active ? "Hide" : "Show"}
