@@ -103,7 +103,7 @@ function Modal({ cat, onSave, onClose }: {
 }
 
 export function Categories() {
-  const { data: categories, loading } = useCollection<Category>("categories");
+  const { data: categories, loading } = useCollection<Category>("categories", { orderBy: "order", ascending: true });
   const [editing, setEditing] = useState<Partial<Category> | null | false>(false);
 
   const sorted = [...categories].sort((a, b) => (a.order ?? 99) - (b.order ?? 99));

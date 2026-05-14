@@ -112,7 +112,7 @@ function Modal({ plan, onSave, onClose }: {
 }
 
 export function Plans() {
-  const { data: plans, loading } = useCollection<SubscriptionPlan>("subscription_plans");
+  const { data: plans, loading } = useCollection<SubscriptionPlan>("subscription_plans", { orderBy: "created_at", ascending: true });
   const [editing, setEditing] = useState<Partial<SubscriptionPlan> | null | false>(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 

@@ -146,7 +146,7 @@ function EditModal({ product, onSave, onClose }: {
 }
 
 export function Products() {
-  const { data: products, loading } = useCollection<Product>("products");
+  const { data: products, loading } = useCollection<Product>("products", { orderBy: "created_at", ascending: true });
   const [search,    setSearch]    = useState("");
   const [editing,   setEditing]   = useState<Partial<Product> | null | false>(false);
   const [catFilter, setCatFilter] = useState("all");

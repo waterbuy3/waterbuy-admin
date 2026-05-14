@@ -49,7 +49,7 @@ function AddDriverModal({ onSave, onClose }: { onSave: (d: Omit<Driver, "id">) =
 }
 
 export function Drivers() {
-  const { data: drivers, loading } = useCollection<Driver>("drivers");
+  const { data: drivers, loading } = useCollection<Driver>("drivers", { orderBy: "created_at", ascending: true });
   const [addOpen, setAddOpen] = useState(false);
 
   const toggleDuty = (d: Driver) => {

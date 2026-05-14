@@ -1,15 +1,13 @@
 import {
-  ShoppingBag, Users, Truck, Package,
-  TrendingUp, Clock, CheckCircle2,
+  ShoppingBag, Truck, Package,
+  TrendingUp, AlertTriangle, CheckCircle2, ChevronRight,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { useCollection } from "@/lib/hooks";
-import { type Order, type Driver, type Subscription, REVENUE_DATA, CATEGORY_DATA } from "@/lib/data";
-
-const PIE_COLORS = ["#3b82f6", "#06b6d4", "#10b981", "#f59e0b", "#8b5cf6"];
+import { useCollection, db_update } from "@/lib/hooks";
+import { type Order, type Driver, type Subscription, type Product, REVENUE_DATA } from "@/lib/data";
 
 const statusColor: Record<string, string> = {
   pending:    "bg-amber-100 text-amber-700",
@@ -23,6 +21,12 @@ const driverStatusColor: Record<string, string> = {
   available: "bg-emerald-500",
   on_route:  "bg-blue-500",
   off_duty:  "bg-slate-400",
+};
+
+const nextStatus: Record<string, { label: string; value: string; color: string }> = {
+  pending:    { label: "Accept",      value: "confirmed",  color: "bg-blue-600 hover:bg-blue-700" },
+  confirmed:  { label: "Dispatch",    value: "in_transit", color: "bg-purple-600 hover:bg-purple-700" },
+  in_transit: { label: "Mark Delivered", value: "delivered", color: "bg-emerald-600 hover:bg-emerald-700" },
 };
 
 function StatCard({ title, value, sub, icon: Icon, color }: {
@@ -44,27 +48,116 @@ function StatCard({ title, value, sub, icon: Icon, color }: {
 }
 
 export function Dashboard() {
-  const { data: orders }  = useCollection<Order>("orders", { orderBy: "placed_at", ascending: false });
-  const { data: drivers } = useCollection<Driver>("drivers");
+  const { data: orders }    = useCollection<Order>("orders", { orderBy: "placed_at", ascending: false });
+  const { data: drivers }   = useCollection<Driver>("drivers");
   const { data: schedules } = useCollection<Subscription>("schedules");
+  const { data: products }  = useCollection<Product>("products");
 
-  const pendingCount   = orders.filter((o) => o.status === "pending").length;
-  const deliveredCount = orders.filter((o) => o.status === "delivered").length;
-  const totalRevenue   = orders.reduce((s, o) => s + Number(o.total), 0);
+  const pendingCount    = orders.filter((o) => o.status === "pending").length;
+  const deliveredCount  = orders.filter((o) => o.status === "delivered").length;
+  const totalRevenue    = orders.reduce((s, o) => s + Number(o.total), 0);
   const activeSchedules = schedules.filter((s) => s.status === "active").length;
-  const activeDrivers  = drivers.filter((d) => d.status !== "off_duty").length;
+  const activeDrivers   = drivers.filter((d) => d.status !== "off_duty").length;
+  const lowStockCount   = products.filter((p) => p.stock <= 10).length;
 
-  const recentOrders = orders.slice(0, 6);
+  const actionableOrders = orders.filter((o) => ["pending", "confirmed", "in_transit"].includes(o.status));
+  const recentOrders     = orders.slice(0, 6);
+
+  const advanceOrder = async (order: Order) => {
+    const next = nextStatus[order.status];
+    if (!next) return;
+    const patch: Record<string, unknown> = { status: next.value };
+    if (next.value === "delivered") patch.delivered_at = new Date().toISOString();
+    await db_update("orders", order.id, patch);
+  };
 
   return (
     <div className="p-4 lg:p-6 space-y-6 animate-fade-in">
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Orders"     value={orders.length}       sub={`${pendingCount} pending`}          icon={ShoppingBag} color="bg-blue-500"    />
-        <StatCard title="Total Revenue"    value={`₹${totalRevenue.toLocaleString()}`} sub={`${deliveredCount} delivered`} icon={TrendingUp}  color="bg-emerald-500" />
-        <StatCard title="Active Schedules" value={activeSchedules}     sub={`${schedules.length} total`}        icon={Package}     color="bg-purple-500"  />
-        <StatCard title="Active Drivers"   value={`${activeDrivers}/${drivers.length}`} sub="on route / available" icon={Truck}    color="bg-amber-500"   />
+        <StatCard title="Total Orders"     value={orders.length}       sub={`${pendingCount} pending`}          icon={ShoppingBag}   color="bg-blue-500"    />
+        <StatCard title="Total Revenue"    value={`₹${totalRevenue.toLocaleString()}`} sub={`${deliveredCount} delivered`} icon={TrendingUp} color="bg-emerald-500" />
+        <StatCard title="Active Schedules" value={activeSchedules}     sub={`${schedules.length} total`}        icon={Package}       color="bg-purple-500"  />
+        <StatCard title="Active Drivers"   value={`${activeDrivers}/${drivers.length}`} sub="on route / available" icon={Truck}     color="bg-amber-500"   />
+      </div>
+
+      {/* Low stock alert + quick order actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* Low stock alert */}
+        {lowStockCount > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-sm font-extrabold text-red-700 mb-0.5">Low Stock Alert</p>
+              <p className="text-xs text-red-600">
+                {lowStockCount} product{lowStockCount > 1 ? "s" : ""} {lowStockCount > 1 ? "are" : "is"} running low (≤10 units).
+              </p>
+              <a href="/products" className="inline-flex items-center gap-1 text-xs font-bold text-red-700 hover:underline mt-1.5">
+                View Products <ChevronRight className="h-3 w-3" />
+              </a>
+            </div>
+          </div>
+        )}
+        {lowStockCount === 0 && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-sm font-extrabold text-emerald-700 mb-0.5">Stock OK</p>
+              <p className="text-xs text-emerald-600">All products have sufficient stock (&gt;10 units).</p>
+            </div>
+          </div>
+        )}
+
+        {/* Quick order actions */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-900">
+              Active Orders
+              {actionableOrders.length > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-extrabold">
+                  {actionableOrders.length}
+                </span>
+              )}
+            </h2>
+            <a href="/orders" className="text-xs font-bold text-blue-600 hover:text-blue-700">View all →</a>
+          </div>
+          {actionableOrders.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-slate-400">No active orders right now.</p>
+          ) : (
+            <div className="divide-y divide-slate-50">
+              {actionableOrders.slice(0, 5).map((o) => {
+                const action = nextStatus[o.status];
+                return (
+                  <div key={o.id} className="px-5 py-3.5 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="text-xs font-bold text-slate-900 truncate">{o.customer}</p>
+                        <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${statusColor[o.status]}`}>
+                          {o.status.replace("_", " ")}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 truncate">{o.items} · ₹{o.total}</p>
+                    </div>
+                    {action && (
+                      <button
+                        onClick={() => advanceOrder(o)}
+                        className={`shrink-0 text-[10px] font-extrabold text-white px-3 py-1.5 rounded-xl transition-colors ${action.color}`}
+                      >
+                        {action.label}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Charts row */}
