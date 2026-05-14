@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Search, Crown, Phone, Mail, ShoppingBag, Droplets } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { type Customer } from "@/lib/data";
@@ -50,7 +50,7 @@ export function Customers() {
         <div className="flex gap-2">
           {([
             { key: "all",      label: "All",           count: customers.length },
-            { key: "prime",    label: "ðŸ‘‘ Prime",      count: primeCount       },
+            { key: "prime",    label: "👑 Prime",      count: primeCount       },
             { key: "standard", label: "Standard",      count: standardCount    },
           ] as const).map(({ key, label, count }) => (
             <button key={key} onClick={() => setTierFilter(key)}
@@ -66,7 +66,7 @@ export function Customers() {
         <div className="flex-1 relative sm:max-w-xs sm:ml-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Name, phone, emailâ€¦"
+            placeholder="Name, phone, email…"
             className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
         </div>
       </div>
@@ -86,10 +86,10 @@ export function Customers() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">Loadingâ€¦</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">Loading…</td></tr>
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">
-                    {customers.length === 0 ? "No customers yet â€” they'll appear when users sign up." : "No customers match your search."}
+                    {customers.length === 0 ? "No customers yet — they'll appear when users sign up." : "No customers match your search."}
                   </td></tr>
                 ) : filtered.map((c) => (
                   <tr key={c.uid} onClick={() => setSelected(c)}
@@ -102,16 +102,16 @@ export function Customers() {
                           </span>
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-slate-900">{c.name || "â€”"}</p>
+                          <p className="text-xs font-bold text-slate-900">{c.name || "—"}</p>
                           <p className="text-[10px] text-slate-400">
-                            {c.created_at ? new Date(c.created_at).toLocaleDateString() : "â€”"}
+                            {c.created_at ? new Date(c.created_at).toLocaleDateString() : "—"}
                           </p>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3.5 hidden sm:table-cell">
-                      <p className="text-xs text-slate-700">{c.phone || "â€”"}</p>
-                      <p className="text-[10px] text-slate-400">{c.email || "â€”"}</p>
+                      <p className="text-xs text-slate-700">{c.phone || "—"}</p>
+                      <p className="text-[10px] text-slate-400">{c.email || "—"}</p>
                     </td>
                     <td className="px-4 py-3.5 text-xs font-bold text-slate-900">{c.orders_count ?? 0}</td>
                     <td className="px-4 py-3.5 text-xs text-slate-700 hidden md:table-cell">{c.litres_delivered ?? 0}L</td>
@@ -135,7 +135,7 @@ export function Customers() {
           <div className="hidden lg:block w-72 shrink-0 bg-white rounded-2xl shadow-sm border border-slate-100 p-5 self-start sticky top-20 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-extrabold text-slate-900">Customer Detail</h3>
-              <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">Ã—</button>
+              <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
             </div>
             <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center">
@@ -144,14 +144,14 @@ export function Customers() {
                 </span>
               </div>
               <div>
-                <p className="text-sm font-extrabold text-slate-900">{selected.name || "â€”"}</p>
+                <p className="text-sm font-extrabold text-slate-900">{selected.name || "—"}</p>
                 {selected.membership_tier === "prime" && (
                   <span className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
                     <Crown className="h-2.5 w-2.5" /> Aqua Prime
                   </span>
                 )}
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  Joined {selected.created_at ? new Date(selected.created_at).toLocaleDateString() : "â€”"}
+                  Joined {selected.created_at ? new Date(selected.created_at).toLocaleDateString() : "—"}
                 </p>
               </div>
             </div>
@@ -169,8 +169,8 @@ export function Customers() {
             </div>
             <div className="space-y-3 text-xs">
               {[
-                { icon: Phone, label: selected.phone || "â€”" },
-                { icon: Mail,  label: selected.email || "â€”" },
+                { icon: Phone, label: selected.phone || "—" },
+                { icon: Mail,  label: selected.email || "—" },
               ].map((row, i) => (
                 <div key={i} className="flex items-center gap-2 text-slate-600">
                   <row.icon className="h-3.5 w-3.5 text-slate-400 shrink-0" />
