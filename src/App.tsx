@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
@@ -12,6 +12,8 @@ import { Subscriptions } from "@/pages/Subscriptions";
 import { Drivers } from "@/pages/Drivers";
 import { Content } from "@/pages/Content";
 import { Settings } from "@/pages/Settings";
+import { Login } from "@/pages/Login";
+import { onAuthStateChange, type User } from "@/lib/supabase";
 
 function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -43,10 +45,29 @@ function Layout() {
 }
 
 export default function App() {
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+
+  useEffect(() => {
+    const unsub = onAuthStateChange(setUser);
+    return unsub;
+  }, []);
+
+  if (user === undefined) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/*" element={<Layout />} />
+        {user ? (
+          <Route path="/*" element={<Layout />} />
+        ) : (
+          <Route path="/*" element={<Login />} />
+        )}
       </Routes>
     </BrowserRouter>
   );

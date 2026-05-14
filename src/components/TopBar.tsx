@@ -1,6 +1,7 @@
-import { Menu, Bell, Search } from "lucide-react";
+import { Menu, Bell, Search, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
+import { adminSignOut } from "@/lib/supabase";
 
 const ROUTE_TITLES: Record<string, string> = {
   "/":              "Dashboard",
@@ -57,6 +58,13 @@ export function TopBar({ onMenuClick }: Props) {
             <p className="text-xs font-bold text-slate-900 leading-none">Admin</p>
             <p className="text-[10px] text-slate-400">Super Admin</p>
           </div>
+          <button
+            onClick={adminSignOut}
+            title="Sign out"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </header>
