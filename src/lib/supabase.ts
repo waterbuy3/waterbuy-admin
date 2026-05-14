@@ -22,6 +22,12 @@ export async function adminSignIn(email: string, password: string): Promise<stri
   return error ? error.message : null;
 }
 
+export async function adminSignUp(email: string, password: string): Promise<string | null> {
+  if (!supabase) return "Supabase not configured";
+  const { error } = await supabase.auth.signUp({ email, password });
+  return error ? error.message : null;
+}
+
 export async function adminSignOut(): Promise<void> {
   await supabase?.auth.signOut();
 }
