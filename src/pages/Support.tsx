@@ -4,7 +4,6 @@ import {
   User, Search, Bell,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import {
   subscribeAllSupportMessages,
   replySupportMessage,
@@ -234,13 +233,13 @@ export function Support() {
             </div>
             <div className="flex gap-2 shrink-0">
               {selected.status !== "closed" && (
-                <Button size="sm" variant="outline" onClick={handleClose} className="text-xs h-7 gap-1">
+                <button onClick={handleClose} className="text-xs h-7 px-2 gap-1 flex items-center border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-700">
                   <CheckCircle2 className="h-3 w-3" /> Close
-                </Button>
+                </button>
               )}
-              <Button size="sm" variant="ghost" onClick={() => setSelected(null)} className="h-7 w-7 p-0">
+              <button onClick={() => setSelected(null)} className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
                 <X className="h-4 w-4" />
-              </Button>
+              </button>
             </div>
           </div>
 
@@ -299,15 +298,14 @@ export function Support() {
                   rows={2}
                   className="flex-1 px-3 py-2 rounded-xl border border-border/60 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary/50 bg-white"
                 />
-                <Button
-                  size="sm"
+                <button
                   disabled={sending || !replyText.trim()}
                   onClick={handleReply}
-                  className="h-auto px-3 gap-1.5 self-end"
+                  className="h-auto px-3 py-2 gap-1.5 self-end flex items-center bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors"
                 >
                   <Send className="h-3.5 w-3.5" />
                   {sending ? "Sending…" : "Reply"}
-                </Button>
+                </button>
               </div>
             </div>
           )}
@@ -330,15 +328,13 @@ export function Support() {
                 placeholder="Message body…"
                 className="flex-1 px-2.5 py-1.5 rounded-lg border border-border/60 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary/50"
               />
-              <Button
-                size="sm"
-                variant="outline"
+              <button
                 disabled={sendingNotif || !notifTitle.trim() || !notifBody.trim()}
                 onClick={handleSendNotif}
-                className="text-xs h-8 gap-1 shrink-0"
+                className="text-xs h-8 px-3 gap-1 shrink-0 flex items-center border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 transition-colors"
               >
                 {notifSent ? <><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Sent!</> : <><Bell className="h-3 w-3" /> Send</>}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
