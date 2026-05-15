@@ -45,9 +45,9 @@ const VENDOR_GROUPS = [
   {
     label: "Management",
     items: [
-      { to: "/vendors",         icon: Store,        label: "Vendors"         },
-      { to: "/vendor-orders",   icon: ClipboardList,label: "Vendor Orders"   },
-      { to: "/vendor-products", icon: BookOpen,     label: "Vendor Products" },
+      { to: "/vendors",         icon: Store,        label: "Vendors & Settings" },
+      { to: "/vendor-orders",   icon: ClipboardList,label: "Vendor Orders"      },
+      { to: "/vendor-products", icon: BookOpen,     label: "Vendor Products"    },
     ],
   },
   {
