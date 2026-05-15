@@ -34,16 +34,17 @@ export function VendorDashboard() {
   const pendingOrders   = orders.filter((o) => !o.vendor_id && o.status === "pending");
   const totalRevenue    = deliveredOrders.reduce((s, o) => s + o.total, 0);
   const totalLitres     = deliveredOrders.reduce((s, o) => s + o.litres, 0);
-  const pendingPayout   = payouts.filter((p) => p.status === "pending").reduce((s, p) => s + p.amount, 0);
-
-  // Per-vendor stats
+  // Per-vendor stats — pending payout = earned revenue minus already-paid payouts
   const vendorStats = vendors.map((v) => {
     const vOrders    = deliveredOrders.filter((o) => o.vendor_id === v.id);
     const vRevenue   = vOrders.reduce((s, o) => s + o.total, 0);
-    const vPending   = payouts.filter((p) => p.vendor_id === v.id && p.status === "pending").reduce((s, p) => s + p.amount, 0);
     const commission = vRevenue * (v.commission_pct / 100);
+    const alreadyPaid = payouts.filter((p) => p.vendor_id === v.id && p.status === "paid").reduce((s, p) => s + p.amount, 0);
+    const vPending   = Math.max(0, vRevenue - alreadyPaid);
     return { ...v, ordersCount: vOrders.length, revenue: vRevenue, pendingPayout: vPending, commission };
   }).sort((a, b) => b.revenue - a.revenue);
+
+  const pendingPayout = vendorStats.reduce((s, v) => s + v.pendingPayout, 0);
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">

@@ -47,7 +47,7 @@ export function Vendors() {
     const delivered = orders.filter((o) => o.vendor_id === v.id && o.status === "delivered");
     const revenue   = delivered.reduce((s, o) => s + o.total, 0);
     const paid      = payouts.filter((p) => p.vendor_id === v.id && p.status === "paid").reduce((s, p) => s + p.amount, 0);
-    const pending   = payouts.filter((p) => p.vendor_id === v.id && p.status === "pending").reduce((s, p) => s + p.amount, 0);
+    const pending   = Math.max(0, revenue - paid);
     const vendorShare = revenue * (1 - v.commission_pct / 100);
     return { ordersCount: delivered.length, revenue, vendorShare, paid, pending };
   };
