@@ -41,6 +41,7 @@ export function Orders() {
   const [page, setPage] = useState(1);
   const [confirmCancel, setConfirmCancel] = useState<Order | null>(null);
   const [acting, setActing] = useState(false);
+  const [advancing, setAdvancing] = useState<string | null>(null);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -73,11 +74,13 @@ export function Orders() {
   }), [orders]);
 
   const advance = async (id: string) => {
+    if (advancing === id) return;
     const o = orders.find((x) => x.id === id);
     if (!o) return;
     const idx  = STATUS_FLOW.indexOf(o.status as OrderStatus);
     const next = STATUS_FLOW[idx + 1];
     if (!next) return;
+    setAdvancing(id);
     try {
       const update: Record<string, unknown> = { status: next };
       if (next === "delivered") update.delivered_at = new Date().toISOString();
@@ -86,6 +89,8 @@ export function Orders() {
       if (selected?.id === id) setSelected({ ...selected, status: next, ...(next === "delivered" ? { delivered_at: new Date().toISOString() } : {}) });
     } catch {
       toast.error("Failed to update order status");
+    } finally {
+      setAdvancing(null);
     }
   };
 
@@ -189,8 +194,9 @@ export function Orders() {
                         <div className="flex items-center gap-2">
                           {canAdvance && (
                             <button onClick={(e) => { e.stopPropagation(); advance(o.id); }}
-                              className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors">
-                              Advance →
+                              disabled={advancing === o.id}
+                              className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors disabled:opacity-50">
+                              {advancing === o.id ? "…" : "Advance →"}
                             </button>
                           )}
                           {o.status !== "cancelled" && o.status !== "delivered" && (
@@ -293,8 +299,9 @@ export function Orders() {
             <div className="mt-4 space-y-2">
               {STATUS_FLOW.indexOf(selected.status as OrderStatus) < STATUS_FLOW.length - 1 && selected.status !== "cancelled" && (
                 <button onClick={() => advance(selected.id)}
-                  className="w-full py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors">
-                  Advance Status →
+                  disabled={advancing === selected.id}
+                  className="w-full py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60">
+                  {advancing === selected.id ? "Updating…" : "Advance Status →"}
                 </button>
               )}
               {selected.status !== "cancelled" && selected.status !== "delivered" && (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Save, Plus, Trash2, Edit3 } from "lucide-react";
+import { toast } from "sonner";
 import { db_set } from "@/lib/hooks";
 import { supabase, isConfigured } from "@/lib/supabase";
 import { type HomeContent } from "@/lib/data";
@@ -47,10 +48,15 @@ export function Content() {
 
   const save = async () => {
     setSaving(true);
-    await db_set("content", "home", { data: content });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    try {
+      await db_set("content", "home", { data: content });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      toast.error("Failed to save content");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateStat = (k: keyof HomeContent["stats"], v: string | number) =>

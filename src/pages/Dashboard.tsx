@@ -4,12 +4,13 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useMemo, useState } from "react";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { useCollection, db_update } from "@/lib/hooks";
-import { type Order, type Driver, type Subscription, type Product, REVENUE_DATA } from "@/lib/data";
+import { type Order, type Driver, type Subscription, type Product } from "@/lib/data";
 import { formatINR, statusLabel } from "@/lib/ui";
 
 const statusColor: Record<string, string> = {
@@ -54,6 +55,7 @@ function StatCard({ title, value, sub, icon: Icon, accent, to }: {
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const [acting, setActing] = useState<string | null>(null);
   const { data: orders }    = useCollection<Order>("orders", { orderBy: "placed_at", ascending: false });
   const { data: drivers }   = useCollection<Driver>("drivers");
   const { data: schedules } = useCollection<Subscription>("schedules");
@@ -69,9 +71,28 @@ export function Dashboard() {
   const actionableOrders = orders.filter((o) => ["pending", "confirmed", "in_transit"].includes(o.status));
   const recentOrders     = orders.slice(0, 6);
 
+  /* Build real 7-day chart data from orders */
+  const weekChartData = useMemo(() => {
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (6 - i));
+      const label = days[d.getDay()];
+      const dateStr = d.toISOString().slice(0, 10);
+      const dayOrders = orders.filter((o) => (o.placed_at ?? "").startsWith(dateStr));
+      return {
+        day: label,
+        revenue: dayOrders.reduce((s, o) => s + Number(o.total), 0),
+        orders: dayOrders.length,
+      };
+    });
+  }, [orders]);
+
   const advanceOrder = async (order: Order) => {
     const next = nextStatus[order.status];
-    if (!next) return;
+    if (!next || acting === order.id) return;
+    setActing(order.id);
     try {
       const patch: Record<string, unknown> = { status: next.value };
       if (next.value === "delivered") patch.delivered_at = new Date().toISOString();
@@ -79,6 +100,8 @@ export function Dashboard() {
       toast.success(`${order.customer}'s order → ${statusLabel(next.value)}`);
     } catch {
       toast.error("Failed to update order");
+    } finally {
+      setActing(null);
     }
   };
 
@@ -158,9 +181,10 @@ export function Dashboard() {
                     {action && (
                       <button
                         onClick={() => advanceOrder(o)}
-                        className={`shrink-0 text-[10px] font-extrabold text-white px-3 py-1.5 rounded-xl transition-colors ${action.color}`}
+                        disabled={acting === o.id}
+                        className={`shrink-0 text-[10px] font-extrabold text-white px-3 py-1.5 rounded-xl transition-colors disabled:opacity-60 ${action.color}`}
                       >
-                        {action.label}
+                        {acting === o.id ? "…" : action.label}
                       </button>
                     )}
                   </div>
@@ -177,11 +201,11 @@ export function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-bold text-slate-900">Revenue Trend</h2>
-              <p className="text-xs text-slate-400">Sample weekly data</p>
+              <p className="text-xs text-slate-400">Last 7 days</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={REVENUE_DATA}>
+            <AreaChart data={weekChartData}>
               <defs>
                 <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.2} />
@@ -297,9 +321,9 @@ export function Dashboard() {
 
       {/* Orders bar chart */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-        <h2 className="text-sm font-bold text-slate-900 mb-4">Weekly Orders (Sample)</h2>
+        <h2 className="text-sm font-bold text-slate-900 mb-4">Weekly Orders</h2>
         <ResponsiveContainer width="100%" height={160}>
-          <BarChart data={REVENUE_DATA} barSize={28}>
+          <BarChart data={weekChartData} barSize={28}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />

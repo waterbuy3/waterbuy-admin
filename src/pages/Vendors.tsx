@@ -235,7 +235,7 @@ export function Vendors() {
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700 shrink-0">
-                              {v.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                              {v.name.split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}
                             </div>
                             <div>
                               <p className="font-medium text-slate-900">{v.name}</p>
