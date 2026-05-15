@@ -1,4 +1,4 @@
-﻿const CACHE = "aquapure-admin-v1";
+const CACHE = "aquapure-admin-v1";
 const PRECACHE = [
   "/",
   "/manifest.webmanifest",
