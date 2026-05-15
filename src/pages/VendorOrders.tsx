@@ -198,7 +198,7 @@ export function VendorOrders() {
                       <tr key={o.id} onClick={() => setSelected(o)}
                         className={`hover:bg-slate-50 cursor-pointer ${selected?.id === o.id ? "bg-indigo-50/40" : ""}`}
                       >
-                        <td className="px-5 py-3.5 font-mono text-xs font-semibold text-slate-700">#{o.id.slice(-6).toUpperCase()}</td>
+                        <td className="px-5 py-3.5 font-mono text-xs font-semibold text-slate-700">#{o.id.slice(0, 8).toUpperCase()}</td>
                         <td className="px-5 py-3.5">
                           <p className="font-medium text-slate-900">{o.customer}</p>
                           <p className="text-[11px] text-slate-400">{o.items}</p>
@@ -235,7 +235,7 @@ export function VendorOrders() {
           <div className="w-full lg:w-[340px] border-l border-slate-200 bg-white flex flex-col overflow-hidden shrink-0">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <div>
-                <p className="text-sm font-bold text-slate-900">#{selected.id.slice(-6).toUpperCase()}</p>
+                <p className="text-sm font-bold text-slate-900">#{selected.id.slice(0, 8).toUpperCase()}</p>
                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${meta.bg} ${meta.text}`}>{meta.label}</span>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X className="h-4 w-4" /></button>

@@ -268,7 +268,7 @@ export function Dashboard() {
                 <tbody className="divide-y divide-slate-50">
                   {recentOrders.map((o) => (
                     <tr key={o.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => navigate("/orders")}>
-                      <td className="px-5 py-3.5 font-bold text-slate-900 text-xs truncate max-w-[80px]">{o.id.slice(0, 8)}</td>
+                      <td className="px-5 py-3.5 font-bold text-slate-900 text-xs truncate max-w-[100px]">#{o.id.slice(0, 8).toUpperCase()}</td>
                       <td className="px-5 py-3.5">
                         <p className="font-semibold text-slate-800 text-xs">{o.customer}</p>
                         <p className="text-[10px] text-slate-400">{o.items}</p>

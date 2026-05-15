@@ -176,7 +176,7 @@ export function Orders() {
                   return (
                     <tr key={o.id} onClick={() => setSelected(o)}
                       className={`hover:bg-blue-50/40 cursor-pointer transition-colors ${selected?.id === o.id ? "bg-blue-50/60" : ""}`}>
-                      <td className="px-4 py-3.5 font-bold text-slate-900 text-xs">{o.id.slice(0, 8)}</td>
+                      <td className="px-4 py-3.5 font-bold text-slate-900 text-xs">#{o.id.slice(0, 8).toUpperCase()}</td>
                       <td className="px-4 py-3.5">
                         <p className="font-semibold text-slate-800 text-xs">{o.customer}</p>
                         <p className="text-[10px] text-slate-400">{o.phone}</p>
@@ -246,7 +246,7 @@ export function Orders() {
         {selected && (
           <div className="hidden lg:block w-72 shrink-0 bg-white rounded-2xl shadow-sm border border-slate-100 p-5 self-start sticky top-20 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-extrabold text-slate-900">{selected.id.slice(0, 8)}</h3>
+              <h3 className="text-sm font-extrabold text-slate-900">#{selected.id.slice(0, 8).toUpperCase()}</h3>
               <button onClick={() => setSelected(null)} aria-label="Close" className="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
             </div>
             <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full border mb-4 ${statusColor[selected.status as OrderStatus]}`}>
