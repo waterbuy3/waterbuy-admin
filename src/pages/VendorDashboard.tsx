@@ -14,6 +14,7 @@ export function VendorDashboard() {
   const [orders,   setOrders]   = useState<OrderRow[]>([]);
   const [payouts,  setPayouts]  = useState<PayoutRow[]>([]);
   const [loading,  setLoading]  = useState(true);
+  const navigate = useNavigate();
 
   const load = async () => {
     if (!supabase) { setLoading(false); return; }
@@ -72,7 +73,6 @@ export function VendorDashboard() {
     </div>
   );
 
-  const navigate = useNavigate();
   const stats = [
     { label: "Total Vendors",     value: String(vendors.length),         sub: `${activeVendors.length} active`,      icon: Store,       bg: "bg-indigo-50",  ic: "text-indigo-600",  to: "/vendors"         },
     { label: "Open Now",          value: String(openVendors.length),     sub: "accepting orders",                    icon: CheckCircle2,bg: "bg-emerald-50", ic: "text-emerald-600", to: "/vendors"         },
