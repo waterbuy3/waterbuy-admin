@@ -13,6 +13,11 @@ import { Drivers } from "@/pages/Drivers";
 import { Content } from "@/pages/Content";
 import { Settings } from "@/pages/Settings";
 import { Login } from "@/pages/Login";
+import { VendorDashboard } from "@/pages/VendorDashboard";
+import { Vendors } from "@/pages/Vendors";
+import { VendorOrders } from "@/pages/VendorOrders";
+import { VendorProducts } from "@/pages/VendorProducts";
+import { VendorPayouts } from "@/pages/VendorPayouts";
 import { onAuthStateChange, type User } from "@/lib/supabase";
 
 function Layout() {
@@ -26,6 +31,7 @@ function Layout() {
         <TopBar onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto">
           <Routes>
+            {/* User App */}
             <Route path="/"              element={<Dashboard />} />
             <Route path="/orders"        element={<Orders />} />
             <Route path="/customers"     element={<Customers />} />
@@ -36,6 +42,12 @@ function Layout() {
             <Route path="/content"       element={<Content />} />
             <Route path="/drivers"       element={<Drivers />} />
             <Route path="/settings"      element={<Settings />} />
+            {/* Vendor */}
+            <Route path="/vendor-dashboard" element={<VendorDashboard />} />
+            <Route path="/vendors"          element={<Vendors />} />
+            <Route path="/vendor-orders"    element={<VendorOrders />} />
+            <Route path="/vendor-products"  element={<VendorProducts />} />
+            <Route path="/vendor-payouts"   element={<VendorPayouts />} />
             <Route path="*"              element={<Navigate to="/" replace />} />
           </Routes>
         </main>

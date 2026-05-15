@@ -1,12 +1,14 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   Repeat, Truck, Droplets, X, LogOut, Settings,
   Tag, LayoutList, FileImage, Store,
+  Wallet, BookOpen, ClipboardList,
 } from "lucide-react";
 import { adminSignOut } from "@/lib/supabase";
+import { useState, useEffect } from "react";
 
-const navGroups = [
+const USER_APP_GROUPS = [
   {
     label: "Main",
     items: [
@@ -33,6 +35,31 @@ const navGroups = [
   },
 ];
 
+const VENDOR_GROUPS = [
+  {
+    label: "Overview",
+    items: [
+      { to: "/vendor-dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    ],
+  },
+  {
+    label: "Management",
+    items: [
+      { to: "/vendors",         icon: Store,        label: "Vendors"         },
+      { to: "/vendor-orders",   icon: ClipboardList,label: "Vendor Orders"   },
+      { to: "/vendor-products", icon: BookOpen,     label: "Vendor Products" },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { to: "/vendor-payouts", icon: Wallet, label: "Payouts" },
+    ],
+  },
+];
+
+const VENDOR_PATHS = ["/vendor-dashboard", "/vendors", "/vendor-orders", "/vendor-products", "/vendor-payouts"];
+
 const linkClass = (isActive: boolean) =>
   `relative flex items-center gap-2.5 px-3 py-[7px] rounded-lg text-[13px] font-medium transition-all duration-100 ${
     isActive
@@ -43,6 +70,20 @@ const linkClass = (isActive: boolean) =>
 interface Props { open: boolean; onClose: () => void; }
 
 export function Sidebar({ open, onClose }: Props) {
+  const location = useLocation();
+  const isVendorRoute = VENDOR_PATHS.some((p) => location.pathname.startsWith(p));
+  const [tab, setTab] = useState<"user" | "vendor">(isVendorRoute ? "vendor" : "user");
+
+  useEffect(() => {
+    if (VENDOR_PATHS.some((p) => location.pathname.startsWith(p))) {
+      setTab("vendor");
+    } else {
+      setTab("user");
+    }
+  }, [location.pathname]);
+
+  const groups = tab === "vendor" ? VENDOR_GROUPS : USER_APP_GROUPS;
+
   return (
     <>
       {open && (
@@ -78,9 +119,35 @@ export function Sidebar({ open, onClose }: Props) {
           </button>
         </div>
 
+        {/* Tab switcher */}
+        <div className="px-3 pt-3 pb-2 shrink-0">
+          <div className="flex gap-1 p-1 bg-white/[0.05] rounded-xl">
+            <button
+              onClick={() => setTab("user")}
+              className={`flex-1 py-1.5 rounded-lg text-[11px] font-extrabold transition-all ${
+                tab === "user"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-white/40 hover:text-white/70"
+              }`}
+            >
+              User App
+            </button>
+            <button
+              onClick={() => setTab("vendor")}
+              className={`flex-1 py-1.5 rounded-lg text-[11px] font-extrabold transition-all ${
+                tab === "vendor"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-white/40 hover:text-white/70"
+              }`}
+            >
+              Vendor
+            </button>
+          </div>
+        </div>
+
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto sidebar-scroll">
-          {navGroups.map((group) => (
+        <nav className="flex-1 px-3 py-2 space-y-5 overflow-y-auto sidebar-scroll">
+          {groups.map((group) => (
             <div key={group.label}>
               <p className="px-3 mb-1 text-[10px] font-semibold text-white/20 uppercase tracking-[0.13em]">
                 {group.label}
@@ -97,7 +164,7 @@ export function Sidebar({ open, onClose }: Props) {
                     {({ isActive }) => (
                       <>
                         {isActive && (
-                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-blue-400" />
+                          <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${tab === "vendor" ? "bg-indigo-400" : "bg-blue-400"}`} />
                         )}
                         <item.icon
                           style={{ height: 15, width: 15 }}
