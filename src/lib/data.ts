@@ -1,4 +1,4 @@
-export type OrderStatus = "pending" | "confirmed" | "in_transit" | "delivered" | "cancelled";
+export type OrderStatus = "pending" | "confirmed" | "in_transit" | "delivered" | "cancelled" | "rejected";
 export type PaymentMethod = "wallet" | "upi" | "cod" | "card";
 export type MemberTier = "standard" | "prime";
 
@@ -45,6 +45,7 @@ export interface Product {
   imageUrl?: string;
   rating?: number;
   reviewCount?: number;
+  orderLimit?: number;
 }
 
 export interface Category {

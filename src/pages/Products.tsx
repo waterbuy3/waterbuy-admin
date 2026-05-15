@@ -22,7 +22,7 @@ function EditModal({ product, onSave, onClose }: {
     name: "", size: "", unit: "Bottle", price: 0, category: "individual",
     description: "", badge: undefined, popular: false, active: true,
     stock: 100, sold: 0, deliveryType: "All", imageUrl: "/water-bottle.png",
-    rating: undefined, reviewCount: undefined, mrp: undefined,
+    rating: undefined, reviewCount: undefined, mrp: undefined, orderLimit: undefined,
   };
   const [form, setForm]       = useState<Omit<Product, "id">>(product ? { ...blank, ...product } : blank);
   const [saving,   setSaving]   = useState(false);
@@ -116,6 +116,7 @@ function EditModal({ product, onSave, onClose }: {
             { label: "Badge",          key: "badge",        type: "text",   full: false },
             { label: "Rating",         key: "rating",       type: "number", full: false },
             { label: "Review Count",   key: "reviewCount",  type: "number", full: false },
+            { label: "Order Limit",    key: "orderLimit",   type: "number", full: false },
           ] as const).map((f) => (
             <div key={f.key} className={f.full ? "col-span-2" : ""}>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
@@ -223,6 +224,11 @@ export function Products() {
     const clean: Record<string, unknown> = Object.fromEntries(
       Object.entries(form).filter(([, v]) => v !== undefined && v !== ""),
     );
+    // Map camelCase fields to snake_case DB columns
+    if ("orderLimit" in clean) { clean.order_limit = clean.orderLimit; delete clean.orderLimit; }
+    if ("imageUrl" in clean)   { clean.image_url   = clean.imageUrl;   delete clean.imageUrl;   }
+    if ("reviewCount" in clean){ clean.review_count = clean.reviewCount; delete clean.reviewCount; }
+    if ("deliveryType" in clean){ clean.delivery_type = clean.deliveryType; delete clean.deliveryType; }
     try {
       if (current?.id) {
         await db_update("products", current.id, clean);

@@ -17,6 +17,7 @@ const statusColor: Record<OrderStatus, string> = {
   in_transit: "bg-violet-100 text-violet-700 border-violet-200",
   delivered:  "bg-emerald-100 text-emerald-700 border-emerald-200",
   cancelled:  "bg-red-100 text-red-600 border-red-200",
+  rejected:   "bg-rose-100 text-rose-700 border-rose-200",
 };
 
 const statusIcon: Record<OrderStatus, React.ElementType> = {
@@ -25,6 +26,7 @@ const statusIcon: Record<OrderStatus, React.ElementType> = {
   in_transit: Truck,
   delivered:  CheckCircle2,
   cancelled:  XCircle,
+  rejected:   XCircle,
 };
 
 const PAYMENT_LABEL: Record<string, string> = {
