@@ -1,8 +1,13 @@
-import { useState } from "react";
-import { Search, PauseCircle, PlayCircle, XCircle, Calendar } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Search, PauseCircle, PlayCircle, XCircle, Calendar, Repeat } from "lucide-react";
+import { toast } from "sonner";
 import { useCollection, db_update } from "@/lib/hooks";
 import { isConfigured } from "@/lib/supabase";
 import { type Subscription } from "@/lib/data";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { EmptyState } from "@/components/EmptyState";
+import { CardSkeleton } from "@/components/Skeleton";
+import { useDebounce, formatINR, formatDate, statusLabel } from "@/lib/ui";
 
 const statusStyle = {
   active:    "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -14,16 +19,36 @@ export function Subscriptions() {
   const { data: subs, loading } = useCollection<Subscription>("schedules", { orderBy: "created_at", ascending: false });
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "paused" | "cancelled">("all");
+  const [confirmCancel, setConfirmCancel] = useState<Subscription | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
-  const filtered = subs.filter((s) => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || s.customer.toLowerCase().includes(q) || s.phone.includes(q) || s.product_name.toLowerCase().includes(q);
-    const matchFilter = filter === "all" || s.status === filter;
-    return matchSearch && matchFilter;
-  });
+  const debouncedSearch = useDebounce(search, 300);
 
-  const updateStatus = (id: string, status: Subscription["status"]) => {
-    db_update("schedules", id, { status });
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    return subs.filter((s) => {
+      if (filter !== "all" && s.status !== filter) return false;
+      if (!q) return true;
+      return s.customer.toLowerCase().includes(q) || (s.phone ?? "").includes(q) || s.product_name.toLowerCase().includes(q);
+    });
+  }, [subs, debouncedSearch, filter]);
+
+  const updateStatus = async (id: string, status: Subscription["status"]) => {
+    try {
+      await db_update("schedules", id, { status });
+      toast.success(`Schedule ${statusLabel(status)}`);
+    } catch { toast.error("Failed to update schedule"); }
+  };
+
+  const performCancel = async () => {
+    if (!confirmCancel) return;
+    setCancelling(true);
+    try {
+      await db_update("schedules", confirmCancel.id, { status: "cancelled" });
+      toast.success("Schedule cancelled");
+      setConfirmCancel(null);
+    } catch { toast.error("Failed to cancel"); }
+    finally { setCancelling(false); }
   };
 
   const counts = {
@@ -41,11 +66,21 @@ export function Subscriptions() {
 
   return (
     <div className="p-4 lg:p-6 animate-fade-in">
+      <ConfirmDialog
+        open={!!confirmCancel}
+        title="Cancel this schedule?"
+        message={confirmCancel ? `${confirmCancel.customer}'s ${confirmCancel.product_name} schedule will be permanently cancelled.` : ""}
+        confirmLabel="Cancel Schedule"
+        cancelLabel="Keep Schedule"
+        loading={cancelling}
+        onConfirm={performCancel}
+        onCancel={() => setConfirmCancel(null)}
+      />
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
         <h2 className="text-lg font-extrabold text-slate-900">Scheduled Deliveries</h2>
         <div className="sm:ml-auto relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Customer, product, phone…"
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Customer, product, phone…" inputMode="search"
             className="pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-56" />
         </div>
       </div>
@@ -56,7 +91,7 @@ export function Subscriptions() {
           { label: "Active",       value: counts.active,                          color: "text-emerald-600" },
           { label: "Paused",       value: counts.paused,                          color: "text-amber-600"   },
           { label: "Cancelled",    value: counts.cancelled,                       color: "text-red-500"     },
-          { label: "Monthly Rev",  value: `₹${monthlyRevenue.toLocaleString()}`,  color: "text-blue-600"   },
+          { label: "Monthly Rev",  value: formatINR(monthlyRevenue),              color: "text-blue-600"   },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
             <p className="text-xs text-slate-400 font-medium">{s.label}</p>
@@ -76,7 +111,9 @@ export function Subscriptions() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-400 text-sm">Loading…</div>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} height={100} />)}
+        </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((s) => (
@@ -98,7 +135,7 @@ export function Subscriptions() {
                   {[
                     { lbl: "Product",   val: s.product_name },
                     { lbl: "Qty",       val: `×${s.quantity}` },
-                    { lbl: "Amount",    val: `₹${s.total}/mo`, cls: "font-extrabold text-blue-600" },
+                    { lbl: "Amount",    val: `${formatINR(s.total)}/mo`, cls: "font-extrabold text-blue-600" },
                   ].map(({ lbl, val, cls }) => (
                     <div key={lbl}>
                       <p className="text-slate-400 text-[10px] font-medium">{lbl}</p>
@@ -130,7 +167,7 @@ export function Subscriptions() {
                     </button>
                   )}
                   {s.status !== "cancelled" && (
-                    <button onClick={() => { if (confirm("Cancel this schedule?")) updateStatus(s.id, "cancelled"); }} title="Cancel"
+                    <button onClick={() => setConfirmCancel(s)} title="Cancel"
                       className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors">
                       <XCircle style={{ height: 18, width: 18 }} />
                     </button>
@@ -138,14 +175,18 @@ export function Subscriptions() {
                 </div>
               </div>
               <p className="text-[10px] text-slate-400 mt-2.5 ml-[52px]">
-                Started {s.created_at ? new Date(s.created_at).toLocaleDateString() : "—"} · {s.frequency} · {s.address}
+                Started {formatDate(s.created_at)} · {s.frequency} · {s.address}
               </p>
             </div>
           ))}
           {filtered.length === 0 && !loading && (
-            <div className="text-center py-12 text-slate-400 text-sm">
-              {subs.length === 0 ? "No scheduled deliveries yet — they'll appear when customers schedule." : "No schedules match your filter."}
-            </div>
+            <EmptyState
+              icon={Repeat}
+              title={subs.length === 0 ? "No schedules yet" : "No matching schedules"}
+              message={subs.length === 0
+                ? "Schedules created by customers will appear here in real time."
+                : "Try changing your search or status filter."}
+            />
           )}
         </div>
       )}

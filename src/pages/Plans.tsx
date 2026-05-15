@@ -1,9 +1,13 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Star, X, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Star, X, Check, ChevronDown, ChevronUp, LayoutList } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
 import { type SubscriptionPlan } from "@/lib/data";
 import { isConfigured } from "@/lib/supabase";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { EmptyState } from "@/components/EmptyState";
+import { CardSkeleton } from "@/components/Skeleton";
+import { formatINR } from "@/lib/ui";
 
 function Modal({ plan, onSave, onClose }: {
   plan: Partial<SubscriptionPlan> | null;
@@ -103,7 +107,14 @@ function Modal({ plan, onSave, onClose }: {
 
         <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancel</button>
-          <button onClick={() => onSave(form)} className="px-5 py-2 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors">
+          <button
+            onClick={() => {
+              if (!form.name.trim()) { toast.error("Plan name is required"); return; }
+              if (!(form.price_per_month > 0)) { toast.error("Price must be greater than 0"); return; }
+              const cleaned = { ...form, features: form.features.map((f) => f.trim()).filter(Boolean) };
+              onSave(cleaned);
+            }}
+            className="px-5 py-2 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors">
             <Check className="h-4 w-4 inline mr-1" />Save
           </button>
         </div>
@@ -133,15 +144,25 @@ export function Plans() {
     }
   };
 
-  const deletePlan = async (p: SubscriptionPlan) => {
-    if (!confirm(`Delete plan "${p.name}"?`)) return;
-    await db_delete("subscription_plans", p.id);
-    toast.success(`"${p.name}" deleted`);
+  const [confirmDelete, setConfirmDelete] = useState<SubscriptionPlan | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const performDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await db_delete("subscription_plans", confirmDelete.id);
+      toast.success(`"${confirmDelete.name}" deleted`);
+      setConfirmDelete(null);
+    } catch { toast.error("Failed to delete plan"); }
+    finally { setDeleting(false); }
   };
 
   const toggleActive = async (p: SubscriptionPlan) => {
-    await db_update("subscription_plans", p.id, { active: !p.active });
-    toast.success(p.active ? `"${p.name}" deactivated` : `"${p.name}" activated`);
+    try {
+      await db_update("subscription_plans", p.id, { active: !p.active });
+      toast.success(p.active ? `"${p.name}" deactivated` : `"${p.name}" activated`);
+    } catch { toast.error("Failed to update plan"); }
   };
 
   if (!isConfigured) {
@@ -159,6 +180,15 @@ export function Plans() {
       {editing !== false && (
         <Modal plan={editing} onSave={savePlan} onClose={() => setEditing(false)} />
       )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete this plan?"
+        message={confirmDelete ? `"${confirmDelete.name}" will be removed. Existing subscribers keep their plan, but new signups won't see it.` : ""}
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={performDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
 
       <div className="flex items-center justify-between mb-5">
         <div>
@@ -178,7 +208,7 @@ export function Plans() {
         {[
           { label: "Total Plans",   value: plans.length,                        color: "text-slate-900" },
           { label: "Active Plans",  value: plans.filter((p) => p.active).length, color: "text-emerald-600" },
-          { label: "Max Plan MRR",  value: `₹${mrr.toLocaleString()}`,           color: "text-blue-600"   },
+          { label: "Max Plan MRR",  value: formatINR(mrr),                       color: "text-blue-600"   },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
             <p className={`text-2xl font-extrabold ${s.color}`}>{s.value}</p>
@@ -188,7 +218,20 @@ export function Plans() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-400 text-sm">Loading…</div>
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} height={120} />)}
+        </div>
+      ) : plans.length === 0 ? (
+        <EmptyState
+          icon={LayoutList}
+          title="No plans yet"
+          message="Create subscription plans for customers (e.g. Daily, Weekly)."
+          action={
+            <button onClick={() => setEditing({})} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors">
+              <Plus className="h-3.5 w-3.5" /> Add First Plan
+            </button>
+          }
+        />
       ) : (
         <div className="space-y-3">
           {plans.map((p) => (
@@ -210,7 +253,7 @@ export function Plans() {
                     <p className="text-xs text-slate-500">{p.description} · {p.delivery_frequency}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <p className="text-lg font-extrabold text-blue-600">₹{p.price_per_month.toLocaleString()}<span className="text-xs text-slate-400 font-medium">/mo</span></p>
+                    <p className="text-lg font-extrabold text-blue-600">{formatINR(p.price_per_month)}<span className="text-xs text-slate-400 font-medium">/mo</span></p>
                     <div className="flex gap-1">
                       <button onClick={() => toggleActive(p)} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${p.active ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"}`}>
                         {p.active ? "Hide" : "Show"}
@@ -218,7 +261,7 @@ export function Plans() {
                       <button onClick={() => setEditing(p)} className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
-                      <button onClick={() => deletePlan(p)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+                      <button onClick={() => setConfirmDelete(p)} title="Delete" className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>

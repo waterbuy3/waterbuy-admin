@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, GripVertical, Eye, EyeOff, X, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, GripVertical, Eye, EyeOff, X, Check, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
 import { type Category } from "@/lib/data";
 import { isConfigured } from "@/lib/supabase";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { EmptyState } from "@/components/EmptyState";
+import { CardSkeleton } from "@/components/Skeleton";
 
 const GRADIENT_OPTIONS = [
   "from-blue-400 to-blue-600",
@@ -96,7 +99,12 @@ function Modal({ cat, onSave, onClose }: {
 
         <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancel</button>
-          <button onClick={() => onSave(form)} className="px-5 py-2 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors">Save</button>
+          <button
+            onClick={() => {
+              if (!form.name.trim()) { toast.error("Name is required"); return; }
+              onSave(form);
+            }}
+            className="px-5 py-2 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors">Save</button>
         </div>
       </div>
     </div>
@@ -125,14 +133,24 @@ export function Categories() {
     }
   };
 
+  const [confirmDelete, setConfirmDelete] = useState<Category | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const toggleActive = async (c: Category) => {
-    await db_update("categories", c.id, { active: !c.active });
-    toast.success(c.active ? `"${c.name}" hidden` : `"${c.name}" activated`);
+    try {
+      await db_update("categories", c.id, { active: !c.active });
+      toast.success(c.active ? `"${c.name}" hidden` : `"${c.name}" activated`);
+    } catch { toast.error("Failed to update category"); }
   };
-  const deleteCategory = async (c: Category) => {
-    if (!confirm(`Delete category "${c.name}"?`)) return;
-    await db_delete("categories", c.id);
-    toast.success(`"${c.name}" deleted`);
+  const performDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await db_delete("categories", confirmDelete.id);
+      toast.success(`"${confirmDelete.name}" deleted`);
+      setConfirmDelete(null);
+    } catch { toast.error("Failed to delete category"); }
+    finally { setDeleting(false); }
   };
 
   if (!isConfigured) {
@@ -152,6 +170,15 @@ export function Categories() {
           onClose={() => setEditing(false)}
         />
       )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete this category?"
+        message={confirmDelete ? `"${confirmDelete.name}" will be removed. Products in this category will keep the tag but lose the filter.` : ""}
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={performDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
 
       <div className="flex items-center justify-between mb-5">
         <div>
@@ -167,7 +194,20 @@ export function Categories() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-400 text-sm">Loading…</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} height={120} />)}
+        </div>
+      ) : sorted.length === 0 ? (
+        <EmptyState
+          icon={Tag}
+          title="No categories yet"
+          message="Create categories to organize products in the customer app."
+          action={
+            <button onClick={() => setEditing({})} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors">
+              <Plus className="h-3.5 w-3.5" /> Add First Category
+            </button>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {sorted.map((c) => (
@@ -194,7 +234,7 @@ export function Categories() {
                   <button onClick={() => setEditing(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => deleteCategory(c)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+                  <button onClick={() => setConfirmDelete(c)} title="Delete" className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>

@@ -1,8 +1,11 @@
 import { useEffect, useState, useMemo } from "react";
-import { Wallet, Search, CheckCircle2, Clock, Plus, X, ChevronRight } from "lucide-react";
+import { Wallet, Search, CheckCircle2, Clock, Plus, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
+import { TableSkeleton } from "@/components/Skeleton";
+import { EmptyState } from "@/components/EmptyState";
+import { useDebounce, formatINR } from "@/lib/ui";
 
 interface Payout {
   id: string; vendor_id: string; amount: number; period: string;
@@ -32,19 +35,30 @@ export function VendorPayouts() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase
+      .channel("payouts-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "payouts" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const debouncedQuery = useDebounce(query, 300);
 
   const filtered = useMemo(() => {
     let list = payouts;
     if (vendorFilter !== "all") list = list.filter((p) => p.vendor_id === vendorFilter);
     if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      const matchVendor = vendors.find((v) => v.name.toLowerCase().includes(q))?.id;
-      list = list.filter((p) => p.period?.toLowerCase().includes(q) || p.vendor_id === matchVendor);
+    if (debouncedQuery.trim()) {
+      const q = debouncedQuery.toLowerCase();
+      const matchVendorIds = new Set(vendors.filter((v) => v.name.toLowerCase().includes(q)).map((v) => v.id));
+      list = list.filter((p) => p.period?.toLowerCase().includes(q) || matchVendorIds.has(p.vendor_id));
     }
     return list;
-  }, [payouts, vendorFilter, statusFilter, query, vendors]);
+  }, [payouts, vendorFilter, statusFilter, debouncedQuery, vendors]);
 
   const totalPaid    = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   const totalPending = payouts.filter((p) => p.status === "pending").reduce((s, p) => s + p.amount, 0);
@@ -61,13 +75,15 @@ export function VendorPayouts() {
   };
 
   const createPayout = async () => {
-    if (!supabase || !form.vendor_id || !form.amount || !form.period) {
-      toast.error("Fill all fields"); return;
-    }
+    if (!supabase) return;
+    if (!form.vendor_id) { toast.error("Select a vendor"); return; }
+    const amt = parseFloat(form.amount);
+    if (!isFinite(amt) || amt <= 0) { toast.error("Enter a valid amount"); return; }
+    if (!form.period.trim()) { toast.error("Enter a period (e.g. May 2026)"); return; }
     const { error } = await supabase.from("payouts").insert({
       vendor_id: form.vendor_id,
-      amount: parseFloat(form.amount),
-      period: form.period,
+      amount: amt,
+      period: form.period.trim(),
       status: "pending",
     });
     if (error) { toast.error("Failed to create payout"); }
@@ -83,12 +99,6 @@ export function VendorPayouts() {
     if (!s) return "—";
     try { return format(parseISO(s), "d MMM yyyy"); } catch { return "—"; }
   };
-
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
 
   return (
     <div className="p-6 space-y-4">
@@ -107,13 +117,13 @@ export function VendorPayouts() {
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {[
-          { label: "Total Paid Out",    value: `₹${totalPaid.toLocaleString()}`,    bg: "bg-emerald-50", ic: "text-emerald-600", icon: CheckCircle2 },
-          { label: "Pending Payouts",   value: `₹${totalPending.toLocaleString()}`, bg: "bg-amber-50",   ic: "text-amber-600",   icon: Clock       },
+          { label: "Total Paid Out",    value: formatINR(totalPaid),    bg: "bg-emerald-50", ic: "text-emerald-600", icon: CheckCircle2 },
+          { label: "Pending Payouts",   value: formatINR(totalPending), bg: "bg-amber-50",   ic: "text-amber-600",   icon: Clock       },
           { label: "Total Payouts",     value: String(payouts.length),              bg: "bg-indigo-50",  ic: "text-indigo-600",  icon: Wallet      },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
             <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center mb-3`}>
-              <s.icon className={`h-4.5 w-4.5 ${s.ic}`} strokeWidth={1.8} />
+              <s.icon className={`h-4 w-4 ${s.ic}`} strokeWidth={1.8} />
             </div>
             <p className="text-2xl font-bold text-slate-900">{s.value}</p>
             <p className="text-[11px] text-slate-400 font-medium mt-0.5">{s.label}</p>
@@ -125,7 +135,7 @@ export function VendorPayouts() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by vendor or period…"
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by vendor or period…" inputMode="search"
             className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
         </div>
         <select value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)}
@@ -144,15 +154,20 @@ export function VendorPayouts() {
       </div>
 
       {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
-          <Wallet className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm text-slate-400">No payouts found</p>
+      {!loading && filtered.length === 0 ? (
+        <div className="bg-white rounded-xl border border-slate-200">
+          <EmptyState
+            icon={Wallet}
+            title={payouts.length === 0 ? "No payouts yet" : "No matching payouts"}
+            message={payouts.length === 0
+              ? "Create a payout, or generate them from the Vendors page."
+              : "Try a different search or filter."}
+          />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[720px]">
               <thead className="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wide font-semibold border-b border-slate-200">
                 <tr>
                   <th className="px-5 py-3 text-left">Vendor</th>
@@ -165,7 +180,8 @@ export function VendorPayouts() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((p) => (
+                {loading && <TableSkeleton rows={6} cols={7} />}
+                {!loading && filtered.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2.5">
@@ -176,7 +192,7 @@ export function VendorPayouts() {
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-slate-600">{p.period || "—"}</td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-slate-900">₹{p.amount.toLocaleString()}</td>
+                    <td className="px-5 py-3.5 text-right font-semibold text-slate-900">{formatINR(p.amount)}</td>
                     <td className="px-5 py-3.5 text-center">
                       {p.status === "paid"
                         ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Paid</span>

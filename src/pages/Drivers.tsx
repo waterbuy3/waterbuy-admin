@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { Truck, Phone, Star, MapPin, Package, Plus, X, Pencil } from "lucide-react";
+import { Truck, Phone, Star, MapPin, Package, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
 import { isConfigured } from "@/lib/supabase";
 import { type Driver } from "@/lib/data";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { EmptyState } from "@/components/EmptyState";
+import { CardSkeleton } from "@/components/Skeleton";
 
 const statusStyle = {
   available: { dot: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-700 border-emerald-200" },
@@ -15,7 +18,20 @@ function AddDriverModal({ onSave, onClose }: { onSave: (d: Omit<Driver, "id">) =
   const [form, setForm] = useState<Omit<Driver, "id">>({
     name: "", phone: "", vehicle: "", zone: "", status: "available", rating: 5, deliveriesToday: 0,
   });
-  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    if (errors[k as string]) setErrors((e) => ({ ...e, [k]: "" }));
+  };
+  const handleSave = () => {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = "Name is required";
+    if (!form.phone.trim()) e.phone = "Phone is required";
+    if (form.rating < 0 || form.rating > 5) e.rating = "Must be 0–5";
+    setErrors(e);
+    if (Object.keys(e).length) { toast.error("Fix errors before saving"); return; }
+    onSave(form);
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -33,16 +49,22 @@ function AddDriverModal({ onSave, onClose }: { onSave: (d: Omit<Driver, "id">) =
             { label: "Rating",    key: "rating",  type: "number", full: false },
           ].map(({ label, key, type, full }) => (
             <div key={key} className={full ? "col-span-2" : ""}>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">{label}</label>
-              <input type={type} value={(form[key as keyof typeof form] as string | number) ?? ""}
+              <label className="block text-xs font-semibold text-slate-500 mb-1">
+                {label}{(key === "name" || key === "phone") && <span className="text-red-500 ml-0.5">*</span>}
+              </label>
+              <input
+                type={type}
+                inputMode={key === "phone" ? "tel" : type === "number" ? "decimal" : undefined}
+                value={(form[key as keyof typeof form] as string | number) ?? ""}
                 onChange={(e) => set(key as keyof typeof form, (type === "number" ? +e.target.value : e.target.value) as never)}
-                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                className={`w-full px-3 py-2 text-sm bg-slate-50 border rounded-xl focus:outline-none focus:ring-2 ${errors[key] ? "border-red-300 focus:ring-red-500/20" : "border-slate-200 focus:ring-blue-500/20"}`} />
+              {errors[key] && <p className="text-[10px] font-semibold text-red-500 mt-1">{errors[key]}</p>}
             </div>
           ))}
         </div>
         <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 rounded-xl">Cancel</button>
-          <button onClick={() => onSave(form)} className="px-5 py-2 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors">Save Driver</button>
+          <button onClick={handleSave} className="px-5 py-2 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors">Save Driver</button>
         </div>
       </div>
     </div>
@@ -69,10 +91,18 @@ export function Drivers() {
     }
   };
 
-  const deleteDriver = async (d: Driver) => {
-    if (!confirm(`Remove driver "${d.name}"?`)) return;
-    await db_delete("drivers", d.id);
-    toast.success(`${d.name} removed`);
+  const [confirmDelete, setConfirmDelete] = useState<Driver | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const performDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await db_delete("drivers", confirmDelete.id);
+      toast.success(`${confirmDelete.name} removed`);
+      setConfirmDelete(null);
+    } catch { toast.error("Failed to remove driver"); }
+    finally { setDeleting(false); }
   };
 
   if (!isConfigured) {
@@ -82,6 +112,15 @@ export function Drivers() {
   return (
     <div className="p-4 lg:p-6 animate-fade-in">
       {addOpen && <AddDriverModal onSave={saveDriver} onClose={() => setAddOpen(false)} />}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Remove this driver?"
+        message={confirmDelete ? `${confirmDelete.name} will be removed. Active deliveries assigned to them are not affected.` : ""}
+        confirmLabel="Remove"
+        loading={deleting}
+        onConfirm={performDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
 
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-lg font-extrabold text-slate-900">Delivery Drivers</h2>
@@ -106,7 +145,20 @@ export function Drivers() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-400 text-sm">Loading…</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} height={160} />)}
+        </div>
+      ) : drivers.length === 0 ? (
+        <EmptyState
+          icon={Truck}
+          title="No drivers yet"
+          message="Add your first delivery driver to start assigning orders."
+          action={
+            <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors">
+              <Plus className="h-3.5 w-3.5" /> Add First Driver
+            </button>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {drivers.map((d) => {
@@ -161,7 +213,7 @@ export function Drivers() {
                   >
                     {d.status === "off_duty" ? "Mark Available" : "Mark Off Duty"}
                   </button>
-                  <button onClick={() => deleteDriver(d)}
+                  <button onClick={() => setConfirmDelete(d)}
                     className="px-3 py-2 text-xs font-extrabold rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors">
                     Remove
                   </button>

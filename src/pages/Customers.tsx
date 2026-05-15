@@ -1,10 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Search, Crown, Phone, Mail, ShoppingBag, Droplets,
-  Store, MapPin, Percent, Check, X, Link, Plus, ToggleLeft, ToggleRight,
+  Store, MapPin, Percent, Check, X, Link, Plus, ToggleLeft, ToggleRight, Users,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { type Customer } from "@/lib/data";
+import { TableSkeleton } from "@/components/Skeleton";
+import { EmptyState } from "@/components/EmptyState";
+import { useDebounce, formatDate, formatLitres } from "@/lib/ui";
 
 /* ─── Vendor type ─── */
 interface Vendor {
@@ -27,13 +31,17 @@ function CustomersTab() {
   const [selected, setSelected]   = useState<Customer | null>(null);
   const [tierFilter, setTierFilter] = useState<"all" | "prime" | "standard">("all");
 
+  const debouncedSearch = useDebounce(search, 300);
+
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
+    let mounted = true;
     const fetch = async () => {
       const { data } = await supabase!
         .from("profiles")
         .select("uid, name, phone, email, membership_tier, orders_count, litres_delivered, created_at")
         .order("created_at", { ascending: false });
+      if (!mounted) return;
       setCustomers((data ?? []) as Customer[]);
       setLoading(false);
     };
@@ -42,16 +50,20 @@ function CustomersTab() {
       .channel("profiles-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, fetch)
       .subscribe();
-    return () => { supabase?.removeChannel(channel); };
+    return () => { mounted = false; supabase?.removeChannel(channel); };
   }, []);
 
-  const filtered = customers.filter((c) => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || (c.name ?? "").toLowerCase().includes(q) || (c.phone ?? "").includes(q) || (c.email ?? "").toLowerCase().includes(q);
-    const tier = c.membership_tier ?? "standard";
-    const matchTier = tierFilter === "all" || tier === tierFilter;
-    return matchSearch && matchTier;
-  });
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    return customers.filter((c) => {
+      const tier = c.membership_tier ?? "standard";
+      if (tierFilter !== "all" && tier !== tierFilter) return false;
+      if (!q) return true;
+      return (c.name ?? "").toLowerCase().includes(q)
+        || (c.phone ?? "").includes(q)
+        || (c.email ?? "").toLowerCase().includes(q);
+    });
+  }, [customers, tierFilter, debouncedSearch]);
 
   const primeCount    = customers.filter(c => c.membership_tier === "prime").length;
   const standardCount = customers.filter(c => c.membership_tier !== "prime").length;
@@ -77,16 +89,16 @@ function CustomersTab() {
         </div>
         <div className="flex-1 relative sm:max-w-xs sm:ml-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)}
+          <input value={search} onChange={(e) => setSearch(e.target.value)} inputMode="search"
             placeholder="Name, phone, email…"
             className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
         </div>
       </div>
 
       <div className="flex gap-4">
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="flex-1 min-w-0 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[560px]">
               <thead>
                 <tr className="border-b border-slate-100 text-left">
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Customer</th>
@@ -98,10 +110,16 @@ function CustomersTab() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">Loading…</td></tr>
+                  <TableSkeleton rows={6} cols={5} />
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">
-                    {customers.length === 0 ? "No customers yet — they'll appear when users sign up." : "No customers match your search."}
+                  <tr><td colSpan={5} className="p-0">
+                    <EmptyState
+                      icon={Users}
+                      title={customers.length === 0 ? "No customers yet" : "No matching customers"}
+                      message={customers.length === 0
+                        ? "Customers will appear here when they sign up in the app."
+                        : "Try a different search or tier filter."}
+                    />
                   </td></tr>
                 ) : filtered.map((c) => (
                   <tr key={c.uid} onClick={() => setSelected(c)}
@@ -115,7 +133,7 @@ function CustomersTab() {
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-900">{c.name || "—"}</p>
-                          <p className="text-[10px] text-slate-400">{c.created_at ? new Date(c.created_at).toLocaleDateString() : "—"}</p>
+                          <p className="text-[10px] text-slate-400">Joined {formatDate(c.created_at)}</p>
                         </div>
                       </div>
                     </td>
@@ -124,7 +142,7 @@ function CustomersTab() {
                       <p className="text-[10px] text-slate-400">{c.email || "—"}</p>
                     </td>
                     <td className="px-4 py-3.5 text-xs font-bold text-slate-900">{c.orders_count ?? 0}</td>
-                    <td className="px-4 py-3.5 text-xs text-slate-700 hidden md:table-cell">{c.litres_delivered ?? 0}L</td>
+                    <td className="px-4 py-3.5 text-xs text-slate-700 hidden md:table-cell">{formatLitres(c.litres_delivered)}</td>
                     <td className="px-4 py-3.5">
                       {c.membership_tier === "prime" ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
@@ -160,13 +178,13 @@ function CustomersTab() {
                     <Crown className="h-2.5 w-2.5" /> Aqua Prime
                   </span>
                 )}
-                <p className="text-[10px] text-slate-400 mt-0.5">Joined {selected.created_at ? new Date(selected.created_at).toLocaleDateString() : "—"}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Joined {formatDate(selected.created_at)}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 mb-5">
               {[
                 { icon: ShoppingBag, value: selected.orders_count ?? 0,   label: "Orders",   color: "text-blue-600 bg-blue-50" },
-                { icon: Droplets,    value: `${selected.litres_delivered ?? 0}L`, label: "Delivered", color: "text-cyan-600 bg-cyan-50" },
+                { icon: Droplets,    value: formatLitres(selected.litres_delivered), label: "Delivered", color: "text-cyan-600 bg-cyan-50" },
               ].map((s) => (
                 <div key={s.label} className={`rounded-xl p-3 text-center ${s.color}`}>
                   <s.icon className="h-4 w-4 mx-auto mb-1" />
@@ -209,6 +227,10 @@ function VendorsTab() {
     ? window.location.origin.replace("-admin", "-vendor") + "/register"
     : "https://your-vendor-app.vercel.app/register";
 
+  const selectedRef = useRef<Vendor | null>(null);
+  selectedRef.current = selected;
+  const debouncedSearch = useDebounce(search, 300);
+
   const fetchVendors = async () => {
     if (!supabase) { setLoading(false); return; }
     const { data } = await supabase
@@ -217,8 +239,9 @@ function VendorsTab() {
       .order("created_at", { ascending: false });
     setVendors((data ?? []) as Vendor[]);
     setLoading(false);
-    if (selected) {
-      const updated = (data ?? []).find((v: Vendor) => v.id === selected.id);
+    const sel = selectedRef.current;
+    if (sel) {
+      const updated = (data ?? []).find((v: Vendor) => v.id === sel.id);
       if (updated) setSelected(updated as Vendor);
     }
   };
@@ -226,31 +249,51 @@ function VendorsTab() {
   useEffect(() => {
     fetchVendors();
     const channel = supabase
-      ?.channel("vendors-realtime")
+      ?.channel("customers-vendors-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "vendors" }, fetchVendors)
       .subscribe();
-    return () => { supabase?.removeChannel(channel!); };
+    return () => { if (channel) supabase?.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = vendors.filter((v) => {
-    const q = search.toLowerCase();
-    return !q || v.name.toLowerCase().includes(q) || v.area.toLowerCase().includes(q) || v.email.toLowerCase().includes(q);
-  });
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return vendors;
+    return vendors.filter((v) =>
+      v.name.toLowerCase().includes(q) ||
+      (v.area ?? "").toLowerCase().includes(q) ||
+      (v.email ?? "").toLowerCase().includes(q),
+    );
+  }, [vendors, debouncedSearch]);
 
   const toggleActive = async (v: Vendor) => {
     if (!supabase) return;
     setTogglingId(v.id);
-    await supabase.from("vendors").update({ active: !v.active }).eq("id", v.id);
-    setTogglingId(null);
+    try {
+      const { error } = await supabase.from("vendors").update({ active: !v.active }).eq("id", v.id);
+      if (error) throw error;
+      toast.success(v.active ? `${v.name} deactivated` : `${v.name} activated`);
+    } catch {
+      toast.error("Failed to update vendor");
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const saveCommission = async () => {
     if (!supabase || !selected || editComm === null) return;
     setSavingComm(true);
-    await supabase.from("vendors").update({ commission_pct: editComm }).eq("id", selected.id);
-    setSavingComm(false);
-    setEditComm(null);
-    fetchVendors();
+    try {
+      const { error } = await supabase.from("vendors").update({ commission_pct: editComm }).eq("id", selected.id);
+      if (error) throw error;
+      toast.success("Commission updated");
+      setEditComm(null);
+      fetchVendors();
+    } catch {
+      toast.error("Failed to update commission");
+    } finally {
+      setSavingComm(false);
+    }
   };
 
   const copyLink = () => {
@@ -276,7 +319,7 @@ function VendorsTab() {
         <div className="flex gap-2 sm:ml-auto">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)}
+            <input value={search} onChange={(e) => setSearch(e.target.value)} inputMode="search"
               placeholder="Name, area, email…"
               className="pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-52" />
           </div>
@@ -288,9 +331,9 @@ function VendorsTab() {
       </div>
 
       <div className="flex gap-4">
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="flex-1 min-w-0 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[560px]">
               <thead>
                 <tr className="border-b border-slate-100 text-left">
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Vendor</th>
@@ -302,12 +345,21 @@ function VendorsTab() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">Loading…</td></tr>
+                  <TableSkeleton rows={5} cols={5} />
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">
-                    {vendors.length === 0
-                      ? "No vendors yet — share the registration link to onboard your first distributor."
-                      : "No vendors match your search."}
+                  <tr><td colSpan={5} className="p-0">
+                    <EmptyState
+                      icon={Store}
+                      title={vendors.length === 0 ? "No vendors yet" : "No matching vendors"}
+                      message={vendors.length === 0
+                        ? "Share the vendor registration link to onboard your first distributor."
+                        : "Try a different search."}
+                      action={vendors.length === 0 ? (
+                        <button onClick={() => setShowInvite(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors">
+                          <Plus className="h-3.5 w-3.5" /> Invite Vendor
+                        </button>
+                      ) : undefined}
+                    />
                   </td></tr>
                 ) : filtered.map((v) => (
                   <tr key={v.id} onClick={() => { setSelected(v); setEditComm(null); }}

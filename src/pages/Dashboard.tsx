@@ -2,6 +2,7 @@ import {
   ShoppingBag, Truck, Package,
   TrendingUp, AlertTriangle, CheckCircle2, ChevronRight,
 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   AreaChart, Area, BarChart, Bar,
@@ -9,6 +10,7 @@ import {
 } from "recharts";
 import { useCollection, db_update } from "@/lib/hooks";
 import { type Order, type Driver, type Subscription, type Product, REVENUE_DATA } from "@/lib/data";
+import { formatINR, statusLabel } from "@/lib/ui";
 
 const statusColor: Record<string, string> = {
   pending:    "bg-amber-100 text-amber-700",
@@ -30,12 +32,12 @@ const nextStatus: Record<string, { label: string; value: string; color: string }
   in_transit: { label: "Mark Delivered", value: "delivered", color: "bg-emerald-600 hover:bg-emerald-700" },
 };
 
-function StatCard({ title, value, sub, icon: Icon, accent }: {
+function StatCard({ title, value, sub, icon: Icon, accent, to }: {
   title: string; value: string | number; sub: string;
-  icon: React.ElementType; accent: string;
+  icon: React.ElementType; accent: string; to?: string;
 }) {
-  return (
-    <div className={`bg-white rounded-2xl p-5 shadow-sm border-l-[3px] border border-slate-100 flex items-start justify-between gap-4 ${accent}`}>
+  const inner = (
+    <div className={`bg-white rounded-2xl p-5 shadow-sm border-l-[3px] border border-slate-100 flex items-start justify-between gap-4 transition-shadow hover:shadow-md ${accent} ${to ? "cursor-pointer" : ""}`}>
       <div className="min-w-0">
         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.07em] mb-2">{title}</p>
         <p className="text-[26px] font-bold text-slate-900 leading-none mb-1.5 tracking-tight">{value}</p>
@@ -46,9 +48,12 @@ function StatCard({ title, value, sub, icon: Icon, accent }: {
       </div>
     </div>
   );
+  if (to) return <Link to={to}>{inner}</Link>;
+  return inner;
 }
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const { data: orders }    = useCollection<Order>("orders", { orderBy: "placed_at", ascending: false });
   const { data: drivers }   = useCollection<Driver>("drivers");
   const { data: schedules } = useCollection<Subscription>("schedules");
@@ -67,10 +72,14 @@ export function Dashboard() {
   const advanceOrder = async (order: Order) => {
     const next = nextStatus[order.status];
     if (!next) return;
-    const patch: Record<string, unknown> = { status: next.value };
-    if (next.value === "delivered") patch.delivered_at = new Date().toISOString();
-    await db_update("orders", order.id, patch);
-    toast.success(`${order.customer}'s order → ${next.value.replace("_", " ")}`);
+    try {
+      const patch: Record<string, unknown> = { status: next.value };
+      if (next.value === "delivered") patch.delivered_at = new Date().toISOString();
+      await db_update("orders", order.id, patch);
+      toast.success(`${order.customer}'s order → ${statusLabel(next.value)}`);
+    } catch {
+      toast.error("Failed to update order");
+    }
   };
 
   return (
@@ -78,10 +87,10 @@ export function Dashboard() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Orders"     value={orders.length}       sub={`${pendingCount} pending`}          icon={ShoppingBag}   accent="border-l-blue-500"    />
-        <StatCard title="Total Revenue"    value={`₹${totalRevenue.toLocaleString()}`} sub={`${deliveredCount} delivered`} icon={TrendingUp} accent="border-l-emerald-500" />
-        <StatCard title="Active Schedules" value={activeSchedules}     sub={`${schedules.length} total`}        icon={Package}       accent="border-l-violet-500"  />
-        <StatCard title="Active Drivers"   value={`${activeDrivers}/${drivers.length}`} sub="on route / available" icon={Truck}     accent="border-l-amber-500"   />
+        <StatCard title="Total Orders"     value={orders.length}       sub={`${pendingCount} pending`}          icon={ShoppingBag}   accent="border-l-blue-500"    to="/orders"        />
+        <StatCard title="Total Revenue"    value={formatINR(totalRevenue)} sub={`${deliveredCount} delivered`} icon={TrendingUp} accent="border-l-emerald-500" to="/orders"        />
+        <StatCard title="Active Schedules" value={activeSchedules}     sub={`${schedules.length} total`}        icon={Package}       accent="border-l-violet-500"  to="/subscriptions" />
+        <StatCard title="Active Drivers"   value={`${activeDrivers}/${drivers.length}`} sub="on route / available" icon={Truck}     accent="border-l-amber-500"   to="/drivers"       />
       </div>
 
       {/* Low stock alert + quick order actions */}
@@ -98,9 +107,9 @@ export function Dashboard() {
               <p className="text-xs text-red-600">
                 {lowStockCount} product{lowStockCount > 1 ? "s" : ""} {lowStockCount > 1 ? "are" : "is"} running low (≤10 units).
               </p>
-              <a href="/products" className="inline-flex items-center gap-1 text-xs font-bold text-red-700 hover:underline mt-1.5">
+              <Link to="/products" className="inline-flex items-center gap-1 text-xs font-bold text-red-700 hover:underline mt-1.5">
                 View Products <ChevronRight className="h-3 w-3" />
-              </a>
+              </Link>
             </div>
           </div>
         )}
@@ -127,7 +136,7 @@ export function Dashboard() {
                 </span>
               )}
             </h2>
-            <a href="/orders" className="text-xs font-bold text-blue-600 hover:text-blue-700">View all →</a>
+            <Link to="/orders" className="text-xs font-bold text-blue-600 hover:text-blue-700">View all →</Link>
           </div>
           {actionableOrders.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-slate-400">No active orders right now.</p>
@@ -140,11 +149,11 @@ export function Dashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <p className="text-xs font-bold text-slate-900 truncate">{o.customer}</p>
-                        <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${statusColor[o.status]}`}>
-                          {o.status.replace("_", " ")}
+                        <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shrink-0 ${statusColor[o.status]}`}>
+                          {statusLabel(o.status)}
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-400 truncate">{o.items} · ₹{o.total}</p>
+                      <p className="text-[10px] text-slate-400 truncate">{o.items} · {formatINR(o.total)}</p>
                     </div>
                     {action && (
                       <button
@@ -190,7 +199,10 @@ export function Dashboard() {
 
         {/* Order status breakdown */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <h2 className="text-sm font-bold text-slate-900 mb-4">Order Status</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-slate-900">Order Status</h2>
+            <Link to="/orders" className="text-xs font-bold text-blue-600 hover:text-blue-700">View all →</Link>
+          </div>
           {[
             { label: "Pending",    count: orders.filter(o => o.status === "pending").length,    color: "bg-amber-400" },
             { label: "Confirmed",  count: orders.filter(o => o.status === "confirmed").length,  color: "bg-blue-400" },
@@ -198,13 +210,13 @@ export function Dashboard() {
             { label: "Delivered",  count: orders.filter(o => o.status === "delivered").length,  color: "bg-emerald-400" },
             { label: "Cancelled",  count: orders.filter(o => o.status === "cancelled").length,  color: "bg-red-400" },
           ].map((s) => (
-            <div key={s.label} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+            <Link key={s.label} to="/orders" className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 -mx-2 px-2 rounded-lg transition-colors">
               <div className="flex items-center gap-2">
                 <div className={`w-2.5 h-2.5 rounded-full ${s.color}`} />
                 <span className="text-xs text-slate-600 font-medium">{s.label}</span>
               </div>
               <span className="text-xs font-extrabold text-slate-900">{s.count}</span>
-            </div>
+            </Link>
           ))}
         </div>
       </div>
@@ -214,13 +226,13 @@ export function Dashboard() {
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900">Recent Orders</h2>
-            <a href="/orders" className="text-xs font-bold text-blue-600 hover:text-blue-700">View all →</a>
+            <Link to="/orders" className="text-xs font-bold text-blue-600 hover:text-blue-700">View all →</Link>
           </div>
           {recentOrders.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-slate-400">No orders yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[480px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-left">
                     <th className="px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">ID</th>
@@ -231,16 +243,16 @@ export function Dashboard() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {recentOrders.map((o) => (
-                    <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-5 py-3.5 font-bold text-slate-900 text-xs truncate max-w-[80px]">{o.id.slice(0, 8)}…</td>
+                    <tr key={o.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => navigate("/orders")}>
+                      <td className="px-5 py-3.5 font-bold text-slate-900 text-xs truncate max-w-[80px]">{o.id.slice(0, 8)}</td>
                       <td className="px-5 py-3.5">
                         <p className="font-semibold text-slate-800 text-xs">{o.customer}</p>
                         <p className="text-[10px] text-slate-400">{o.items}</p>
                       </td>
-                      <td className="px-5 py-3.5 font-bold text-slate-900 text-xs">₹{o.total}</td>
+                      <td className="px-5 py-3.5 font-bold text-slate-900 text-xs">{formatINR(o.total)}</td>
                       <td className="px-5 py-3.5">
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full capitalize ${statusColor[o.status]}`}>
-                          {o.status.replace("_", " ")}
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${statusColor[o.status]}`}>
+                          {statusLabel(o.status)}
                         </span>
                       </td>
                     </tr>
@@ -254,14 +266,14 @@ export function Dashboard() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900">Drivers</h2>
-            <a href="/drivers" className="text-xs font-bold text-blue-600 hover:text-blue-700">Manage →</a>
+            <Link to="/drivers" className="text-xs font-bold text-blue-600 hover:text-blue-700">Manage →</Link>
           </div>
           {drivers.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-slate-400">No drivers added.</p>
           ) : (
             <div className="divide-y divide-slate-50">
               {drivers.map((d) => (
-                <div key={d.id} className="px-5 py-3.5 flex items-center gap-3">
+                <Link key={d.id} to="/drivers" className="px-5 py-3.5 flex items-center gap-3 hover:bg-slate-50/50 transition-colors">
                   <div className="relative shrink-0">
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center">
                       <span className="text-[10px] font-extrabold text-white">{d.name.split(" ").map(n => n[0]).join("")}</span>
@@ -276,7 +288,7 @@ export function Dashboard() {
                     <p className="text-xs font-extrabold text-slate-900">{d.deliveriesToday}</p>
                     <p className="text-[10px] text-slate-400">today</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

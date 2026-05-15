@@ -7,6 +7,8 @@ import {
 import { supabase } from "@/lib/supabase";
 import { db_update } from "@/lib/hooks";
 import { toast } from "sonner";
+import { TableSkeleton } from "@/components/Skeleton";
+import { useDebounce, formatINR } from "@/lib/ui";
 
 interface Vendor {
   id: string; name: string; email: string; phone: string; area: string;
@@ -56,7 +58,18 @@ export function Vendors() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase
+      .channel("vendors-page-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "vendors" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "payouts" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openEdit = (mode: EditMode, v: Vendor) => {
     setEditMode(mode);
@@ -141,24 +154,20 @@ export function Vendors() {
     return { ordersCount: delivered.length, revenue, pending };
   };
 
+  const debouncedQuery = useDebounce(query, 300);
+
   const filtered = useMemo(() => {
-    if (!query.trim()) return vendors;
-    const q = query.toLowerCase();
+    if (!debouncedQuery.trim()) return vendors;
+    const q = debouncedQuery.toLowerCase();
     return vendors.filter((v) =>
       v.name.toLowerCase().includes(q) ||
       v.area?.toLowerCase().includes(q) ||
       v.email?.toLowerCase().includes(q)
     );
-  }, [vendors, query]);
+  }, [vendors, debouncedQuery]);
 
   const activeCount = vendors.filter((v) => v.active).length;
   const openCount   = vendors.filter((v) => v.active && v.is_open).length;
-
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
 
   return (
     <div className="flex h-full gap-0">
@@ -178,7 +187,7 @@ export function Vendors() {
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, area, email…"
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, area, email…" inputMode="search"
               className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
           </div>
         </div>
@@ -198,14 +207,14 @@ export function Vendors() {
 
         <div className="flex-1 overflow-y-auto px-6 pb-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            {filtered.length === 0 ? (
+            {!loading && filtered.length === 0 ? (
               <div className="py-16 text-center">
                 <Store className="h-8 w-8 text-slate-200 mx-auto mb-2" />
                 <p className="text-sm text-slate-400">{query ? "No vendors match your search" : "No vendors yet"}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead className="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wide font-semibold border-b border-slate-200">
                     <tr>
                       <th className="px-5 py-3 text-left">Vendor</th>
@@ -217,7 +226,8 @@ export function Vendors() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filtered.map((v) => (
+                    {loading && <TableSkeleton rows={6} cols={6} />}
+                    {!loading && filtered.map((v) => (
                       <tr key={v.id}
                         className={`hover:bg-slate-50 cursor-pointer transition-colors ${selected?.id === v.id ? "bg-indigo-50/50" : ""}`}
                         onClick={() => { setSelected(v); setEditMode(null); }}
@@ -277,9 +287,9 @@ export function Vendors() {
               {/* Stats */}
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: "Orders",  value: String(stats.ordersCount),              icon: ShoppingBag, bg: "bg-blue-50",   ic: "text-blue-600"   },
-                  { label: "Revenue", value: `₹${stats.revenue.toLocaleString()}`,   icon: TrendingUp,  bg: "bg-emerald-50",ic: "text-emerald-600"},
-                  { label: "Pending", value: `₹${stats.pending.toLocaleString()}`,   icon: Wallet,      bg: "bg-amber-50",  ic: "text-amber-600"  },
+                  { label: "Orders",  value: String(stats.ordersCount), icon: ShoppingBag, bg: "bg-blue-50",   ic: "text-blue-600"   },
+                  { label: "Revenue", value: formatINR(stats.revenue),  icon: TrendingUp,  bg: "bg-emerald-50",ic: "text-emerald-600"},
+                  { label: "Pending", value: formatINR(stats.pending),  icon: Wallet,      bg: "bg-amber-50",  ic: "text-amber-600"  },
                 ].map((s) => (
                   <div key={s.label} className="bg-slate-50 rounded-xl p-3">
                     <div className={`w-7 h-7 rounded-lg ${s.bg} flex items-center justify-center mb-2`}>

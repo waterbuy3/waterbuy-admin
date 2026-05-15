@@ -98,7 +98,8 @@ export async function sendNotificationToUser(
 
 export function onAuthStateChange(cb: (user: User | null) => void) {
   if (!supabase) { cb(null); return () => {}; }
-  supabase.auth.getSession().then(({ data }) => cb(data.session?.user ?? null));
+  // onAuthStateChange fires INITIAL_SESSION on startup — getSession() is redundant
+  // and causes a double-callback race that can re-trigger auth teardown/setup.
   const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
     cb(session?.user ?? null);
   });

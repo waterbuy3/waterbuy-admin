@@ -1,9 +1,12 @@
 import { useEffect, useState, useMemo } from "react";
-import { ShoppingBag, Search, X, ChevronRight, Truck, XCircle, CheckCircle2, Clock, MapPin, Phone } from "lucide-react";
+import { ShoppingBag, Search, X, ChevronRight, Truck, XCircle, CheckCircle2, MapPin, Phone } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { db_update } from "@/lib/hooks";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { TableSkeleton } from "@/components/Skeleton";
+import { useDebounce, formatINR } from "@/lib/ui";
 
 interface Order {
   id: string; vendor_id: string | null; customer: string; phone: string;
@@ -35,6 +38,8 @@ export function VendorOrders() {
   const [selected, setSelected] = useState<Order | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState<Order | null>(null);
+  const debouncedQuery = useDebounce(query, 300);
 
   const load = async () => {
     if (!supabase) { setLoading(false); return; }
@@ -47,7 +52,16 @@ export function VendorOrders() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase
+      .channel("vendor-orders-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     let list = orders;
@@ -55,12 +69,12 @@ export function VendorOrders() {
     else if (tab === "Assigned") list = list.filter((o) => !!o.vendor_id && o.status !== "delivered" && o.status !== "cancelled");
     else if (tab === "Delivered") list = list.filter((o) => o.status === "delivered");
     else if (tab === "Cancelled") list = list.filter((o) => o.status === "cancelled");
-    if (query.trim()) {
-      const q = query.toLowerCase();
+    if (debouncedQuery.trim()) {
+      const q = debouncedQuery.toLowerCase();
       list = list.filter((o) => o.customer.toLowerCase().includes(q) || o.id.slice(-6).toLowerCase().includes(q) || o.items.toLowerCase().includes(q));
     }
     return list;
-  }, [orders, tab, query]);
+  }, [orders, tab, debouncedQuery]);
 
   const counts = useMemo(() => ({
     All: orders.length,
@@ -103,20 +117,25 @@ export function VendorOrders() {
       toast.success("Order cancelled");
       load();
       setSelected((prev) => prev?.id === order.id ? { ...prev, status: "cancelled" } : prev);
+      setConfirmCancel(null);
     } catch { toast.error("Failed to cancel"); }
     finally { setActing(false); }
   };
 
   const vendorName = (id: string | null) => id ? (vendors.find((v) => v.id === id)?.name ?? "Unknown") : null;
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-
   return (
     <div className="flex h-full gap-0">
+      <ConfirmDialog
+        open={!!confirmCancel}
+        title="Cancel this order?"
+        message={confirmCancel ? `Order from ${confirmCancel.customer} for ${formatINR(confirmCancel.total)} will be cancelled.` : ""}
+        confirmLabel="Cancel Order"
+        cancelLabel="Keep Order"
+        loading={acting}
+        onConfirm={() => confirmCancel && cancelOrder(confirmCancel)}
+        onCancel={() => setConfirmCancel(null)}
+      />
       {/* List */}
       <div className={`flex flex-col flex-1 min-w-0 ${selected ? "hidden lg:flex" : "flex"}`}>
         <div className="px-6 pt-6 pb-4 border-b border-slate-200 bg-white space-y-3">
@@ -140,7 +159,13 @@ export function VendorOrders() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="bg-white">
+              <table className="w-full text-sm"><tbody className="divide-y divide-slate-100">
+                <TableSkeleton rows={6} cols={7} />
+              </tbody></table>
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48">
               <ShoppingBag className="h-8 w-8 text-slate-200 mb-2" />
               <p className="text-sm text-slate-400">No orders here</p>
@@ -178,7 +203,7 @@ export function VendorOrders() {
                             : <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-semibold">Unassigned</span>
                           }
                         </td>
-                        <td className="px-5 py-3.5 text-right font-semibold text-slate-900">₹{o.total}</td>
+                        <td className="px-5 py-3.5 text-right font-semibold text-slate-900">{formatINR(o.total)}</td>
                         <td className="px-5 py-3.5 text-center">
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${meta.bg} ${meta.text}`}>{meta.label}</span>
                         </td>
@@ -224,7 +249,7 @@ export function VendorOrders() {
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Order</p>
                 <p className="text-sm text-slate-700">{selected.items}</p>
                 {selected.litres > 0 && <p className="text-sm text-slate-500">{selected.litres}L water</p>}
-                <p className="text-sm font-semibold text-slate-900">₹{selected.total} · {selected.payment?.toUpperCase()}</p>
+                <p className="text-sm font-semibold text-slate-900">{formatINR(selected.total)} · {selected.payment?.toUpperCase()}</p>
               </div>
 
               {/* Assign vendor */}
@@ -255,7 +280,7 @@ export function VendorOrders() {
                       <Truck className="h-4 w-4" /> {NEXT_LABEL[selected.status] ?? "Advance"}
                     </button>
                   )}
-                  <button onClick={() => cancelOrder(selected)} disabled={acting}
+                  <button onClick={() => setConfirmCancel(selected)} disabled={acting}
                     className="w-full py-2.5 bg-red-50 text-red-600 text-sm font-semibold rounded-xl border border-red-100 disabled:opacity-60 flex items-center justify-center gap-2">
                     <XCircle className="h-4 w-4" /> Cancel Order
                   </button>

@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
-  MessageCircle, Send, CheckCircle2, Clock, X,
-  User, Search, ChevronDown, Bell,
+  MessageCircle, Send, CheckCircle2, X,
+  User, Search, Bell,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   subscribeAllSupportMessages,
@@ -11,6 +12,7 @@ import {
   sendNotificationToUser,
   type SupportMessage,
 } from "@/lib/supabase";
+import { useDebounce, formatDateTime } from "@/lib/ui";
 
 const statusColor: Record<string, string> = {
   open:    "text-amber-700 bg-amber-100",
@@ -53,19 +55,21 @@ export function Support() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selected]);
 
-  const visible = msgs.filter((m) => {
-    if (filter !== "all" && m.status !== filter) return false;
-    if (search) {
-      const q = search.toLowerCase();
+  const debouncedSearch = useDebounce(search, 300);
+
+  const visible = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    return msgs.filter((m) => {
+      if (filter !== "all" && m.status !== filter) return false;
+      if (!q) return true;
       return (
         m.user_name.toLowerCase().includes(q) ||
         m.user_email.toLowerCase().includes(q) ||
         m.subject.toLowerCase().includes(q) ||
         m.message.toLowerCase().includes(q)
       );
-    }
-    return true;
-  });
+    });
+  }, [msgs, filter, debouncedSearch]);
 
   const stats = {
     total: msgs.length,
@@ -77,40 +81,54 @@ export function Support() {
   const handleReply = async () => {
     if (!selected || !replyText.trim()) return;
     setSending(true);
-    await replySupportMessage(selected.id, replyText.trim());
-    // Also send an in-app notification to the user
-    await sendNotificationToUser(selected.user_id, {
-      title: "Support Reply",
-      body: `Your message "${selected.subject}" has been answered.`,
-      type: "support",
-    });
-    setReplyText("");
-    setSending(false);
+    try {
+      await replySupportMessage(selected.id, replyText.trim());
+      await sendNotificationToUser(selected.user_id, {
+        title: "Support Reply",
+        body: `Your message "${selected.subject}" has been answered.`,
+        type: "support",
+      });
+      toast.success("Reply sent");
+      setReplyText("");
+    } catch {
+      toast.error("Failed to send reply");
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleClose = async () => {
     if (!selected) return;
-    await closeSupportMessage(selected.id);
+    try {
+      await closeSupportMessage(selected.id);
+      toast.success("Ticket closed");
+    } catch { toast.error("Failed to close ticket"); }
   };
 
   const handleSendNotif = async () => {
     if (!selected || !notifTitle.trim() || !notifBody.trim()) return;
     setSendingNotif(true);
-    await sendNotificationToUser(selected.user_id, {
-      title: notifTitle.trim(),
-      body: notifBody.trim(),
-    });
-    setSendingNotif(false);
-    setNotifSent(true);
-    setNotifTitle("");
-    setNotifBody("");
-    setTimeout(() => setNotifSent(false), 3000);
+    try {
+      await sendNotificationToUser(selected.user_id, {
+        title: notifTitle.trim(),
+        body: notifBody.trim(),
+      });
+      toast.success("Notification sent");
+      setNotifSent(true);
+      setNotifTitle("");
+      setNotifBody("");
+      setTimeout(() => setNotifSent(false), 3000);
+    } catch {
+      toast.error("Failed to send notification");
+    } finally {
+      setSendingNotif(false);
+    }
   };
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       {/* Left: ticket list */}
-      <div className="w-full max-w-sm border-r border-border/60 flex flex-col bg-white overflow-hidden">
+      <div className={`w-full lg:max-w-sm border-r border-border/60 flex-col bg-white overflow-hidden ${selected ? "hidden lg:flex" : "flex"}`}>
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b border-border/40 shrink-0">
           <h1 className="text-base font-extrabold text-foreground mb-3">Support Inbox</h1>
@@ -184,7 +202,7 @@ export function Support() {
               <p className="text-xs font-semibold text-muted-foreground truncate mb-0.5">{m.subject}</p>
               <p className="text-[11px] text-muted-foreground/70 truncate">{m.message}</p>
               <p className="text-[10px] text-muted-foreground/50 mt-1">
-                {new Date(m.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                {formatDateTime(m.created_at)}
               </p>
             </button>
           ))}
@@ -193,7 +211,7 @@ export function Support() {
 
       {/* Right: conversation detail */}
       {!selected ? (
-        <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 gap-3">
+        <div className="hidden lg:flex flex-1 flex-col items-center justify-center bg-muted/20 gap-3">
           <MessageCircle className="h-16 w-16 text-muted-foreground/20" />
           <p className="text-sm font-semibold text-muted-foreground">Select a message to view</p>
         </div>
@@ -237,7 +255,7 @@ export function Support() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-bold text-foreground">{selected.user_name}</span>
                   <span className="text-[10px] text-muted-foreground">
-                    {new Date(selected.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    {formatDateTime(selected.created_at)}
                   </span>
                 </div>
                 <div className="bg-muted/50 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-foreground max-w-xl">
@@ -257,7 +275,7 @@ export function Support() {
                     <span className="text-xs font-bold text-foreground">Admin</span>
                     {selected.replied_at && (
                       <span className="text-[10px] text-muted-foreground">
-                        {new Date(selected.replied_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        {formatDateTime(selected.replied_at)}
                       </span>
                     )}
                   </div>

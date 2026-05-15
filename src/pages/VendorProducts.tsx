@@ -3,6 +3,9 @@ import { Package, Search, ToggleLeft, ToggleRight, Droplets, ChevronDown, Chevro
 import { supabase } from "@/lib/supabase";
 import { db_update } from "@/lib/hooks";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/EmptyState";
+import { CardSkeleton } from "@/components/Skeleton";
+import { useDebounce, formatINR } from "@/lib/ui";
 
 interface Product {
   id: string; vendor_id: string | null; name: string; size: string; unit: string;
@@ -31,19 +34,30 @@ export function VendorProducts() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase
+      .channel("vendor-products-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const debouncedQuery = useDebounce(query, 300);
 
   const filtered = useMemo(() => {
     let list = products;
     if (vendorFilter !== "all") list = list.filter((p) => p.vendor_id === vendorFilter);
     if (filter === "active")   list = list.filter((p) => p.active);
     if (filter === "inactive") list = list.filter((p) => !p.active);
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      list = list.filter((p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
+    if (debouncedQuery.trim()) {
+      const q = debouncedQuery.toLowerCase();
+      list = list.filter((p) => p.name.toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q));
     }
     return list;
-  }, [products, vendorFilter, filter, query]);
+  }, [products, vendorFilter, filter, debouncedQuery]);
 
   const toggleActive = async (p: Product) => {
     await db_update("products", p.id, { active: !p.active });
@@ -53,17 +67,13 @@ export function VendorProducts() {
 
   const adjustStock = async (p: Product, delta: number) => {
     const newStock = Math.max(0, p.stock + delta);
-    await db_update("products", p.id, { stock: newStock });
-    load();
+    try {
+      await db_update("products", p.id, { stock: newStock });
+      load();
+    } catch { toast.error("Failed to update stock"); }
   };
 
   const vendorName = (id: string | null) => vendors.find((v) => v.id === id)?.name ?? "Unknown";
-
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
 
   return (
     <div className="p-6 space-y-4">
@@ -79,7 +89,7 @@ export function VendorProducts() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search products…"
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search products…" inputMode="search"
             className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
         </div>
         <select value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)}
@@ -98,10 +108,19 @@ export function VendorProducts() {
       </div>
 
       {/* Product list */}
-      {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
-          <Package className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm text-slate-400">{query ? "No products match your search" : "No vendor products yet"}</p>
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => <CardSkeleton key={i} />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-xl border border-slate-200">
+          <EmptyState
+            icon={Package}
+            title={products.length === 0 ? "No vendor products yet" : "No matching products"}
+            message={products.length === 0
+              ? "Products added by vendors will appear here."
+              : "Try a different search or filter."}
+          />
         </div>
       ) : (
         <div className="space-y-2">
@@ -128,8 +147,8 @@ export function VendorProducts() {
                     <p className="text-[11px] text-indigo-600 font-semibold mt-0.5">by {vendorName(p.vendor_id)}</p>
                   </div>
                   <div className="text-right shrink-0 mr-2">
-                    <p className="text-sm font-bold text-slate-900">₹{p.price}</p>
-                    {p.mrp && p.mrp > p.price && <p className="text-[10px] text-slate-400 line-through">₹{p.mrp}</p>}
+                    <p className="text-sm font-bold text-slate-900">{formatINR(p.price)}</p>
+                    {p.mrp && p.mrp > p.price ? <p className="text-[10px] text-slate-400 line-through">{formatINR(p.mrp)}</p> : null}
                     <p className="text-[11px] text-slate-500 mt-0.5">Stock: <span className={`font-bold ${p.stock === 0 ? "text-red-500" : "text-slate-700"}`}>{p.stock}</span></p>
                   </div>
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />}

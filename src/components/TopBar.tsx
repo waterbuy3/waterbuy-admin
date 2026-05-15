@@ -4,16 +4,22 @@ import { useLocation } from "react-router-dom";
 import { adminSignOut } from "@/lib/supabase";
 
 const ROUTE_TITLES: Record<string, string> = {
-  "/":              "Dashboard",
-  "/orders":        "Orders",
-  "/customers":     "Customers",
-  "/products":      "Products",
-  "/categories":    "Categories",
-  "/plans":         "Plans",
-  "/subscriptions": "Subscriptions",
-  "/drivers":       "Drivers",
-  "/content":       "Content",
-  "/settings":      "Settings",
+  "/":                 "Dashboard",
+  "/orders":           "Orders",
+  "/customers":        "Customers",
+  "/products":         "Products",
+  "/categories":       "Categories",
+  "/plans":            "Plans",
+  "/subscriptions":    "Subscriptions",
+  "/drivers":          "Drivers",
+  "/content":          "Content",
+  "/support":          "Support",
+  "/settings":         "Settings",
+  "/vendor-dashboard": "Vendor Dashboard",
+  "/vendors":          "Vendors & Settings",
+  "/vendor-orders":    "Vendor Orders",
+  "/vendor-products":  "Vendor Products",
+  "/vendor-payouts":   "Vendor Payouts",
 };
 
 interface Props { onMenuClick: () => void; }

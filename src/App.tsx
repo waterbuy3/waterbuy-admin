@@ -63,7 +63,9 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onAuthStateChange(setUser);
-    return unsub;
+    // Safety: if Supabase never responds, stop blocking the login page.
+    const timeout = setTimeout(() => setUser((u) => u === undefined ? null : u), 8000);
+    return () => { unsub(); clearTimeout(timeout); };
   }, []);
 
   if (user === undefined) {

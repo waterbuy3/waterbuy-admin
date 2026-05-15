@@ -1,10 +1,14 @@
-import { useState } from "react";
-import { Search, Plus, Pencil, Trash2, Eye, EyeOff, Flame, X, ImageIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Search, Plus, Pencil, Trash2, Eye, EyeOff, Flame, X, ImageIcon, Package } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
 import { uploadProductImage } from "@/lib/storage";
 import { isConfigured } from "@/lib/supabase";
 import { type Product } from "@/lib/data";
+import { TableSkeleton } from "@/components/Skeleton";
+import { EmptyState } from "@/components/EmptyState";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useDebounce, formatINR } from "@/lib/ui";
 
 const CATEGORIES = ["individual", "apartment", "bundles", "events", "wedding", "corporate", "machines"];
 const DELIVERY_TYPES = ["All", "Instant", "Scheduled", "Subscription"];
@@ -23,9 +27,23 @@ function EditModal({ product, onSave, onClose }: {
   const [form, setForm]       = useState<Omit<Product, "id">>(product ? { ...blank, ...product } : blank);
   const [saving,   setSaving]   = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
 
-  const update = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
+  const update = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
+    if (errors[k]) setErrors((e) => ({ ...e, [k]: undefined }));
+  };
+
+  const validate = (): boolean => {
+    const e: Partial<Record<keyof typeof form, string>> = {};
+    if (!form.name.trim()) e.name = "Name is required";
+    if (!(form.price > 0)) e.price = "Price must be greater than 0";
+    if (form.mrp !== undefined && form.mrp < form.price) e.mrp = "MRP should be ≥ Price";
+    if (form.stock < 0) e.stock = "Stock cannot be negative";
+    if (form.rating !== undefined && (form.rating < 0 || form.rating > 5)) e.rating = "Rating must be 0–5";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -43,10 +61,16 @@ function EditModal({ product, onSave, onClose }: {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) return;
+    if (!validate()) {
+      toast.error("Please fix the errors before saving");
+      return;
+    }
     setSaving(true);
-    await onSave(form);
-    setSaving(false);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -94,13 +118,19 @@ function EditModal({ product, onSave, onClose }: {
             { label: "Review Count",   key: "reviewCount",  type: "number", full: false },
           ] as const).map((f) => (
             <div key={f.key} className={f.full ? "col-span-2" : ""}>
-              <label className="block text-xs font-semibold text-slate-500 mb-1.5">{f.label}</label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+                {f.label}
+                {(f.key === "name" || f.key === "price") && <span className="text-red-500 ml-0.5">*</span>}
+              </label>
               <input
                 type={f.type}
+                inputMode={f.type === "number" ? "decimal" : undefined}
+                min={f.type === "number" ? 0 : undefined}
                 value={(form[f.key] as string | number | undefined) ?? ""}
                 onChange={(e) => update(f.key, f.type === "number" ? (e.target.value === "" ? undefined : +e.target.value) : e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
+                className={`w-full px-3 py-2 text-sm bg-slate-50 border rounded-xl focus:outline-none focus:ring-2 focus:bg-white transition-all ${errors[f.key] ? "border-red-300 focus:ring-red-500/20" : "border-slate-200 focus:ring-blue-500/20"}`}
               />
+              {errors[f.key] && <p className="text-[10px] font-semibold text-red-500 mt-1">{errors[f.key]}</p>}
             </div>
           ))}
 
@@ -151,23 +181,41 @@ export function Products() {
   const [search,    setSearch]    = useState("");
   const [editing,   setEditing]   = useState<Partial<Product> | null | false>(false);
   const [catFilter, setCatFilter] = useState("all");
+  const [confirmDelete, setConfirmDelete] = useState<Product | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const filtered = products.filter((p) => {
-    const q        = search.toLowerCase();
-    const matchQ   = !q || p.name.toLowerCase().includes(q) || (p.category ?? "").includes(q);
-    const matchCat = catFilter === "all" || p.category === catFilter;
-    return matchQ && matchCat;
-  });
+  const debouncedSearch = useDebounce(search, 300);
+
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    return products.filter((p) => {
+      if (catFilter !== "all" && p.category !== catFilter) return false;
+      if (!q) return true;
+      return p.name.toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q);
+    });
+  }, [products, catFilter, debouncedSearch]);
 
   const toggleActive = async (p: Product) => {
-    await db_update("products", p.id, { active: !p.active });
-    toast.success(p.active ? `"${p.name}" hidden from customers` : `"${p.name}" is now active`);
+    try {
+      await db_update("products", p.id, { active: !p.active });
+      toast.success(p.active ? `"${p.name}" hidden from customers` : `"${p.name}" is now active`);
+    } catch {
+      toast.error("Failed to update product");
+    }
   };
 
-  const deleteProduct = async (p: Product) => {
-    if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
-    await db_delete("products", p.id);
-    toast.success(`"${p.name}" deleted`);
+  const performDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await db_delete("products", confirmDelete.id);
+      toast.success(`"${confirmDelete.name}" deleted`);
+      setConfirmDelete(null);
+    } catch {
+      toast.error("Failed to delete product");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const saveProduct = async (form: Omit<Product, "id">) => {
@@ -204,6 +252,15 @@ export function Products() {
       {editing !== false && (
         <EditModal product={editing} onSave={saveProduct} onClose={() => setEditing(false)} />
       )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete this product?"
+        message={confirmDelete ? `"${confirmDelete.name}" will be permanently removed. This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={performDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
@@ -219,7 +276,7 @@ export function Products() {
         <div className="sm:ml-auto flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products…"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products…" inputMode="search"
               className="pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-48" />
           </div>
           <button onClick={() => setEditing({})}
@@ -244,12 +301,10 @@ export function Products() {
         ))}
       </div>
 
-      {loading ? (
-        <div className="text-center py-12 text-slate-400 text-sm">Loading…</div>
-      ) : (
+      {(
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b border-slate-100 text-left">
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Product</th>
@@ -262,7 +317,8 @@ export function Products() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filtered.map((p) => (
+                {loading && <TableSkeleton rows={6} cols={7} />}
+                {!loading && filtered.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2.5">
@@ -281,8 +337,8 @@ export function Products() {
                     </td>
                     <td className="px-4 py-3.5 text-xs text-slate-600 capitalize hidden sm:table-cell">{p.category}</td>
                     <td className="px-4 py-3.5">
-                      <span className="text-xs font-bold text-slate-900">₹{p.price}</span>
-                      {p.mrp && <span className="text-[10px] text-slate-400 line-through ml-1">₹{p.mrp}</span>}
+                      <span className="text-xs font-bold text-slate-900">{formatINR(p.price)}</span>
+                      {p.mrp ? <span className="text-[10px] text-slate-400 line-through ml-1">{formatINR(p.mrp)}</span> : null}
                     </td>
                     <td className="px-4 py-3.5 hidden md:table-cell">
                       <span className={`text-xs font-bold ${(p.stock ?? 0) < 20 ? "text-red-500" : "text-slate-700"}`}>{p.stock ?? "—"}</span>
@@ -304,7 +360,7 @@ export function Products() {
                           className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => deleteProduct(p)}
+                        <button onClick={() => setConfirmDelete(p)} title="Delete"
                           className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -313,8 +369,19 @@ export function Products() {
                   </tr>
                 ))}
                 {filtered.length === 0 && !loading && (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
-                    No products found. {products.length === 0 && "Go to Settings → Seed Database to get started."}
+                  <tr><td colSpan={7} className="p-0">
+                    <EmptyState
+                      icon={Package}
+                      title={products.length === 0 ? "No products yet" : "No matching products"}
+                      message={products.length === 0
+                        ? "Add your first product, or seed the database from Settings."
+                        : "Try adjusting your search or category filter."}
+                      action={products.length === 0 ? (
+                        <button onClick={() => setEditing({})} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors">
+                          <Plus className="h-3.5 w-3.5" /> Add Product
+                        </button>
+                      ) : undefined}
+                    />
                   </td></tr>
                 )}
               </tbody>
