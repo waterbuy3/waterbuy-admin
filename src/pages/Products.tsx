@@ -22,7 +22,7 @@ function EditModal({ product, onSave, onClose }: {
     name: "", size: "", unit: "Bottle", price: 0, category: "individual",
     description: "", badge: undefined, popular: false, active: true,
     stock: 100, sold: 0, deliveryType: "All", imageUrl: "/water-bottle.png",
-    rating: undefined, reviewCount: undefined, mrp: undefined, orderLimit: undefined,
+    rating: undefined, reviewCount: undefined, mrp: undefined, orderLimit: undefined, sortOrder: undefined,
   };
   const [form, setForm]       = useState<Omit<Product, "id">>(product ? { ...blank, ...product } : blank);
   const [saving,   setSaving]   = useState(false);
@@ -117,6 +117,7 @@ function EditModal({ product, onSave, onClose }: {
             { label: "Rating",         key: "rating",       type: "number", full: false },
             { label: "Review Count",   key: "reviewCount",  type: "number", full: false },
             { label: "Order Limit",    key: "orderLimit",   type: "number", full: false },
+            { label: "Sort Order",     key: "sortOrder",    type: "number", full: false },
           ] as const).map((f) => (
             <div key={f.key} className={f.full ? "col-span-2" : ""}>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
@@ -178,7 +179,7 @@ function EditModal({ product, onSave, onClose }: {
 }
 
 export function Products() {
-  const { data: products, loading } = useCollection<Product>("products", { orderBy: "created_at", ascending: true });
+  const { data: products, loading } = useCollection<Product>("products", { orderBy: "sort_order", ascending: true });
   const [search,    setSearch]    = useState("");
   const [editing,   setEditing]   = useState<Partial<Product> | null | false>(false);
   const [catFilter, setCatFilter] = useState("all");
@@ -229,6 +230,7 @@ export function Products() {
     if ("imageUrl" in clean)   { clean.image_url   = clean.imageUrl;   delete clean.imageUrl;   }
     if ("reviewCount" in clean){ clean.review_count = clean.reviewCount; delete clean.reviewCount; }
     if ("deliveryType" in clean){ clean.delivery_type = clean.deliveryType; delete clean.deliveryType; }
+    if ("sortOrder" in clean)   { clean.sort_order    = clean.sortOrder;    delete clean.sortOrder;    }
     try {
       if (current?.id) {
         await db_update("products", current.id, clean);
@@ -313,6 +315,7 @@ export function Products() {
             <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b border-slate-100 text-left">
+                  <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em] w-10">#</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Product</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em] hidden sm:table-cell">Category</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em]">Price</th>
@@ -326,6 +329,7 @@ export function Products() {
                 {loading && <TableSkeleton rows={6} cols={7} />}
                 {!loading && filtered.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 py-3.5 text-xs font-mono text-slate-400 text-center">{p.sortOrder ?? "—"}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2.5">
                         {p.imageUrl && (
@@ -375,7 +379,7 @@ export function Products() {
                   </tr>
                 ))}
                 {filtered.length === 0 && !loading && (
-                  <tr><td colSpan={7} className="p-0">
+                  <tr><td colSpan={8} className="p-0">
                     <EmptyState
                       icon={Package}
                       title={products.length === 0 ? "No products yet" : "No matching products"}

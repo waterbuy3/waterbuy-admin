@@ -46,6 +46,7 @@ export interface Product {
   rating?: number;
   reviewCount?: number;
   orderLimit?: number;
+  sortOrder?: number;
 }
 
 export interface Category {
