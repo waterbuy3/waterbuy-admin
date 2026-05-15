@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   MessageCircle, Send, CheckCircle2, X,
-  User, Search, Bell,
+  User, Search, Bell, Store,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -11,6 +11,7 @@ import {
   sendNotificationToUser,
   type SupportMessage,
 } from "@/lib/supabase";
+import { useCollection } from "@/lib/hooks";
 import { useDebounce, formatDateTime } from "@/lib/ui";
 
 const statusColor: Record<string, string> = {
@@ -36,7 +37,14 @@ export function Support() {
   const [notifBody, setNotifBody] = useState("");
   const [sendingNotif, setSendingNotif] = useState(false);
   const [notifSent, setNotifSent] = useState(false);
+  const [senderFilter, setSenderFilter] = useState<"all" | "customer" | "vendor">("all");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Vendor tickets share the support_messages table — identify them by
+  // matching the message's user_id against the vendors table.
+  const { data: vendors } = useCollection<{ id: string }>("vendors");
+  const vendorIds = useMemo(() => new Set(vendors.map((v) => v.id)), [vendors]);
+  const isVendorMsg = (m: SupportMessage) => vendorIds.has(m.user_id);
 
   useEffect(() => {
     const unsub = subscribeAllSupportMessages(setMsgs);
@@ -60,6 +68,9 @@ export function Support() {
     const q = debouncedSearch.trim().toLowerCase();
     return msgs.filter((m) => {
       if (filter !== "all" && m.status !== filter) return false;
+      const isVendor = vendorIds.has(m.user_id);
+      if (senderFilter === "vendor" && !isVendor) return false;
+      if (senderFilter === "customer" && isVendor) return false;
       if (!q) return true;
       return (
         m.user_name.toLowerCase().includes(q) ||
@@ -68,7 +79,7 @@ export function Support() {
         m.message.toLowerCase().includes(q)
       );
     });
-  }, [msgs, filter, debouncedSearch]);
+  }, [msgs, filter, debouncedSearch, senderFilter, vendorIds]);
 
   const stats = {
     total: msgs.length,
@@ -158,7 +169,7 @@ export function Support() {
             />
           </div>
 
-          {/* Filter tabs */}
+          {/* Status filter tabs */}
           <div className="flex gap-1">
             {(["all", "open", "replied", "closed"] as const).map((f) => (
               <button
@@ -171,6 +182,27 @@ export function Support() {
                 }`}
               >
                 {f}
+              </button>
+            ))}
+          </div>
+
+          {/* Sender filter */}
+          <div className="flex gap-1 mt-1.5">
+            {([
+              { k: "all", label: "Everyone" },
+              { k: "customer", label: "Customers" },
+              { k: "vendor", label: "Vendors" },
+            ] as const).map((s) => (
+              <button
+                key={s.k}
+                onClick={() => setSenderFilter(s.k)}
+                className={`flex-1 py-1 rounded-md text-[10px] font-bold transition-all ${
+                  senderFilter === s.k
+                    ? "bg-indigo-600 text-white"
+                    : "text-muted-foreground hover:bg-muted/60"
+                }`}
+              >
+                {s.label}
               </button>
             ))}
           </div>
@@ -193,7 +225,14 @@ export function Support() {
               }`}
             >
               <div className="flex items-start justify-between gap-2 mb-1">
-                <p className="text-xs font-bold text-foreground truncate">{m.user_name}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-xs font-bold text-foreground truncate">{m.user_name}</p>
+                  {isVendorMsg(m) && (
+                    <span className="shrink-0 flex items-center gap-0.5 text-[8px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                      <Store className="h-2.5 w-2.5" /> VENDOR
+                    </span>
+                  )}
+                </div>
                 <span className={`shrink-0 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${statusColor[m.status]}`}>
                   {statusLabel[m.status]}
                 </span>
@@ -219,11 +258,18 @@ export function Support() {
           {/* Ticket header */}
           <div className="px-5 py-3 border-b border-border/40 flex items-start justify-between gap-3 shrink-0">
             <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-3.5 w-3.5 text-primary" />
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isVendorMsg(selected) ? "bg-teal-100" : "bg-primary/10"}`}>
+                  {isVendorMsg(selected)
+                    ? <Store className="h-3.5 w-3.5 text-teal-700" />
+                    : <User className="h-3.5 w-3.5 text-primary" />}
                 </div>
                 <p className="text-sm font-extrabold text-foreground">{selected.user_name}</p>
+                {isVendorMsg(selected) && (
+                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                    VENDOR
+                  </span>
+                )}
                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${statusColor[selected.status]}`}>
                   {statusLabel[selected.status]}
                 </span>
