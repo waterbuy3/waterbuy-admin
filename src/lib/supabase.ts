@@ -10,13 +10,20 @@ export const isSupabaseConfigured =
 
 export const isConfigured = isSupabaseConfigured;
 
+// Standalone PWA gets its own storage key → separate BroadcastChannel from
+// the browser tab, so signing out in Chrome doesn't evict the PWA session.
+const isPwa = typeof window !== "undefined" &&
+  (window.matchMedia("(display-mode: standalone)").matches ||
+   (navigator as { standalone?: boolean }).standalone === true);
+
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        flowType: "implicit",       // localStorage-only — works in PWA standalone
+        flowType: "implicit",
         persistSession: true,
         detectSessionInUrl: true,
         autoRefreshToken: true,
+        storageKey: isPwa ? "aqp-admin-pwa" : "aqp-admin-browser",
       },
     })
   : null;
