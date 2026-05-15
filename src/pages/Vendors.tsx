@@ -156,15 +156,21 @@ export function Vendors() {
 
   const debouncedQuery = useDebounce(query, 300);
 
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "open">("all");
+
   const filtered = useMemo(() => {
-    if (!debouncedQuery.trim()) return vendors;
+    let list = vendors;
+    if (statusFilter === "active")   list = list.filter((v) => v.active);
+    if (statusFilter === "inactive") list = list.filter((v) => !v.active);
+    if (statusFilter === "open")     list = list.filter((v) => v.active && v.is_open);
+    if (!debouncedQuery.trim()) return list;
     const q = debouncedQuery.toLowerCase();
-    return vendors.filter((v) =>
+    return list.filter((v) =>
       v.name.toLowerCase().includes(q) ||
       v.area?.toLowerCase().includes(q) ||
       v.email?.toLowerCase().includes(q)
     );
-  }, [vendors, debouncedQuery]);
+  }, [vendors, debouncedQuery, statusFilter]);
 
   const activeCount = vendors.filter((v) => v.active).length;
   const openCount   = vendors.filter((v) => v.active && v.is_open).length;
@@ -189,6 +195,19 @@ export function Vendors() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, area, email…" inputMode="search"
               className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+          </div>
+          <div className="flex gap-1">
+            {([
+              { key: "all",      label: `All (${vendors.length})`                              },
+              { key: "active",   label: `Active (${vendors.filter(v => v.active).length})`     },
+              { key: "open",     label: `Open (${vendors.filter(v => v.active && v.is_open).length})` },
+              { key: "inactive", label: `Inactive (${vendors.filter(v => !v.active).length})`  },
+            ] as const).map(({ key, label }) => (
+              <button key={key} onClick={() => setStatusFilter(key)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${statusFilter === key ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}>
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 

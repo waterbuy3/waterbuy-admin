@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Wallet, Search, CheckCircle2, Clock, Plus, X } from "lucide-react";
+import { Wallet, Search, CheckCircle2, Clock, Plus, X, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
@@ -20,8 +20,9 @@ export function VendorPayouts() {
   const [query,    setQuery]    = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "paid">("all");
   const [vendorFilter, setVendorFilter] = useState("all");
-  const [acting,   setActing]   = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [acting,      setActing]      = useState<string | null>(null);
+  const [showCreate,  setShowCreate]  = useState(false);
+  const [generating,  setGenerating]  = useState(false);
   const [form, setForm] = useState({ vendor_id: "", amount: "", period: "" });
 
   const load = async () => {
@@ -95,6 +96,44 @@ export function VendorPayouts() {
     }
   };
 
+  const generatePayouts = async () => {
+    if (!supabase) return;
+    setGenerating(true);
+    try {
+      const [oRes, vRes] = await Promise.all([
+        supabase.from("orders").select("vendor_id,total,status"),
+        supabase.from("vendors").select("id,name,commission_pct").eq("active", true),
+      ]);
+      const orders  = (oRes.data ?? []) as { vendor_id: string; total: number; status: string }[];
+      const vList   = (vRes.data ?? []) as { id: string; name: string; commission_pct: number }[];
+      const period  = new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+
+      // Build per-vendor already-accounted totals (paid + pending payout records)
+      const accounted: Record<string, number> = {};
+      for (const p of payouts) accounted[p.vendor_id] = (accounted[p.vendor_id] ?? 0) + p.amount;
+
+      const inserts: { vendor_id: string; amount: number; period: string; status: string }[] = [];
+      for (const v of vList) {
+        const earnings = orders
+          .filter((o) => o.vendor_id === v.id && o.status === "delivered")
+          .reduce((s, o) => s + o.total, 0);
+        const vendorShare = +(earnings * (1 - (v.commission_pct ?? 10) / 100)).toFixed(2);
+        const owed = +(vendorShare - (accounted[v.id] ?? 0)).toFixed(2);
+        if (owed > 0) inserts.push({ vendor_id: v.id, amount: owed, period, status: "pending" });
+      }
+
+      if (inserts.length === 0) {
+        toast.info("All vendors are up to date — no new payouts needed");
+        return;
+      }
+      const { error } = await supabase.from("payouts").insert(inserts);
+      if (error) { toast.error("Failed to generate payouts"); return; }
+      toast.success(`Generated ${inserts.length} pending payout${inserts.length > 1 ? "s" : ""}`);
+      load();
+    } catch { toast.error("Generation failed"); }
+    finally { setGenerating(false); }
+  };
+
   const fmtDate = (s?: string) => {
     if (!s) return "—";
     try { return format(parseISO(s), "d MMM yyyy"); } catch { return "—"; }
@@ -108,10 +147,16 @@ export function VendorPayouts() {
           <h1 className="text-xl font-bold text-slate-900">Vendor Payouts</h1>
           <p className="text-xs text-slate-400 mt-0.5">{payouts.length} payouts · {payouts.filter((p) => p.status === "pending").length} pending</p>
         </div>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors">
-          <Plus className="h-4 w-4" /> New Payout
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={generatePayouts} disabled={generating}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60">
+            <Zap className="h-4 w-4" /> {generating ? "Generating…" : "Auto-Generate"}
+          </button>
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors">
+            <Plus className="h-4 w-4" /> New Payout
+          </button>
+        </div>
       </div>
 
       {/* Summary */}
