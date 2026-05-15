@@ -18,6 +18,7 @@ import { Vendors } from "@/pages/Vendors";
 import { VendorOrders } from "@/pages/VendorOrders";
 import { VendorProducts } from "@/pages/VendorProducts";
 import { VendorPayouts } from "@/pages/VendorPayouts";
+import { Support } from "@/pages/Support";
 import { onAuthStateChange, type User } from "@/lib/supabase";
 
 function Layout() {
@@ -41,6 +42,7 @@ function Layout() {
             <Route path="/subscriptions" element={<Subscriptions />} />
             <Route path="/content"       element={<Content />} />
             <Route path="/drivers"       element={<Drivers />} />
+            <Route path="/support"       element={<Support />} />
             <Route path="/settings"      element={<Settings />} />
             {/* Vendor */}
             <Route path="/vendor-dashboard" element={<VendorDashboard />} />

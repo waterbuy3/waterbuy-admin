@@ -32,6 +32,70 @@ export async function adminSignOut(): Promise<void> {
   await supabase?.auth.signOut();
 }
 
+// ─── Support Messages ─────────────────────────────────────────────────────────
+
+export interface SupportMessage {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  subject: string;
+  message: string;
+  status: "open" | "replied" | "closed";
+  admin_reply: string | null;
+  created_at: string;
+  replied_at: string | null;
+}
+
+export function subscribeAllSupportMessages(
+  callback: (msgs: SupportMessage[]) => void
+): () => void {
+  if (!supabase) { callback([]); return () => {}; }
+  const fetch = async () => {
+    const { data } = await supabase!
+      .from("support_messages")
+      .select("*")
+      .order("created_at", { ascending: false });
+    callback((data ?? []) as SupportMessage[]);
+  };
+  fetch();
+  const ch = supabase
+    .channel("admin-support-all")
+    .on("postgres_changes", { event: "*", schema: "public", table: "support_messages" }, fetch)
+    .subscribe();
+  return () => { supabase!.removeChannel(ch); };
+}
+
+export async function replySupportMessage(id: string, reply: string): Promise<void> {
+  if (!supabase) return;
+  await supabase!.from("support_messages").update({
+    admin_reply: reply,
+    status: "replied",
+    replied_at: new Date().toISOString(),
+  }).eq("id", id);
+}
+
+export async function closeSupportMessage(id: string): Promise<void> {
+  if (!supabase) return;
+  await supabase!.from("support_messages").update({ status: "closed" }).eq("id", id);
+}
+
+// ─── Notifications (send to user) ────────────────────────────────────────────
+
+export async function sendNotificationToUser(
+  userId: string,
+  notif: { title: string; body: string; type?: string }
+): Promise<void> {
+  if (!supabase) return;
+  await supabase!.from("notifications").insert({
+    user_id: userId,
+    title: notif.title,
+    body: notif.body,
+    type: notif.type ?? "general",
+    read: false,
+  });
+}
+
 export function onAuthStateChange(cb: (user: User | null) => void) {
   if (!supabase) { cb(null); return () => {}; }
   supabase.auth.getSession().then(({ data }) => cb(data.session?.user ?? null));

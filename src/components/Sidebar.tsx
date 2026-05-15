@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ShoppingBag, Users, Package,
   Repeat, Truck, Droplets, X, LogOut, Settings,
   Tag, LayoutList, FileImage, Store,
-  Wallet, BookOpen, ClipboardList,
+  Wallet, BookOpen, ClipboardList, MessageCircle,
 } from "lucide-react";
 import { adminSignOut } from "@/lib/supabase";
 import { useState, useEffect } from "react";
@@ -28,9 +28,10 @@ const USER_APP_GROUPS = [
   {
     label: "Operations",
     items: [
-      { to: "/subscriptions", icon: Repeat,    label: "Subscriptions" },
-      { to: "/drivers",       icon: Truck,     label: "Drivers"       },
-      { to: "/content",       icon: FileImage, label: "Content"       },
+      { to: "/subscriptions", icon: Repeat,        label: "Subscriptions" },
+      { to: "/drivers",       icon: Truck,         label: "Drivers"       },
+      { to: "/content",       icon: FileImage,     label: "Content"       },
+      { to: "/support",       icon: MessageCircle, label: "Support"       },
     ],
   },
 ];
