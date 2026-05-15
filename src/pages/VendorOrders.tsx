@@ -1,12 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
-import { ShoppingBag, Search, X, ChevronRight, Truck, XCircle, CheckCircle2, MapPin, Phone } from "lucide-react";
+import { ShoppingBag, X, ChevronRight, Truck, XCircle, CheckCircle2, MapPin, Phone } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { db_update } from "@/lib/hooks";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TableSkeleton } from "@/components/Skeleton";
-import { useDebounce, formatINR } from "@/lib/ui";
+import { formatINR } from "@/lib/ui";
+import { MultiFilter, type FilterMap, matchesFilters, type ColDef } from "@/components/MultiFilter";
 
 interface Order {
   id: string; vendor_id: string | null; customer: string; phone: string;
@@ -29,17 +30,30 @@ const NEXT_LABEL: Record<string, string> = { pending: "Confirm", confirmed: "Dis
 const TABS = ["All", "Unassigned", "Assigned", "Delivered", "Cancelled"] as const;
 type Tab = (typeof TABS)[number];
 
+const ORDER_COLS: ColDef[] = [
+  { key: "customer",  label: "Customer",   type: "text" },
+  { key: "items",     label: "Items",      type: "text" },
+  { key: "status",    label: "Status",     type: "select", options: [
+    { value: "pending",    label: "Pending"    },
+    { value: "confirmed",  label: "Confirmed"  },
+    { value: "in_transit", label: "In Transit" },
+    { value: "delivered",  label: "Delivered"  },
+    { value: "cancelled",  label: "Cancelled"  },
+  ]},
+  { key: "total",     label: "Amount",     type: "number-range", prefix: "₹" },
+  { key: "placed_at", label: "Order Date", type: "date-range" },
+];
+
 export function VendorOrders() {
   const [orders,  setOrders]  = useState<Order[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query,   setQuery]   = useState("");
+  const [filters, setFilters] = useState<FilterMap>({});
   const [tab,     setTab]     = useState<Tab>("All");
   const [selected, setSelected] = useState<Order | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState<Order | null>(null);
-  const debouncedQuery = useDebounce(query, 300);
 
   const load = async () => {
     if (!supabase) { setLoading(false); return; }
@@ -69,12 +83,8 @@ export function VendorOrders() {
     else if (tab === "Assigned") list = list.filter((o) => !!o.vendor_id && o.status !== "delivered" && o.status !== "cancelled");
     else if (tab === "Delivered") list = list.filter((o) => o.status === "delivered");
     else if (tab === "Cancelled") list = list.filter((o) => o.status === "cancelled");
-    if (debouncedQuery.trim()) {
-      const q = debouncedQuery.toLowerCase();
-      list = list.filter((o) => o.customer.toLowerCase().includes(q) || o.id.slice(-6).toLowerCase().includes(q) || o.items.toLowerCase().includes(q));
-    }
-    return list;
-  }, [orders, tab, debouncedQuery]);
+    return list.filter((o) => matchesFilters(o as unknown as Record<string, unknown>, filters));
+  }, [orders, tab, filters]);
 
   const counts = useMemo(() => ({
     All: orders.length,
@@ -140,11 +150,7 @@ export function VendorOrders() {
       <div className={`flex flex-col flex-1 min-w-0 ${selected ? "hidden lg:flex" : "flex"}`}>
         <div className="px-6 pt-6 pb-4 border-b border-slate-200 bg-white space-y-3">
           <h1 className="text-xl font-bold text-slate-900">Vendor Orders</h1>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search orders…"
-              className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
-          </div>
+          <MultiFilter columns={ORDER_COLS} value={filters} onChange={setFilters} />
           <div className="flex gap-1.5 overflow-x-auto pb-0.5">
             {TABS.map((t) => (
               <button key={t} onClick={() => setTab(t)}
@@ -236,7 +242,6 @@ export function VendorOrders() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
-              {/* Customer */}
               <div className="bg-slate-50 rounded-xl p-4 space-y-2">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Customer</p>
                 <p className="font-semibold text-slate-900">{selected.customer}</p>
@@ -244,7 +249,6 @@ export function VendorOrders() {
                 <div className="flex items-start gap-1.5 text-sm text-slate-500"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />{selected.address}</div>
               </div>
 
-              {/* Order details */}
               <div className="bg-slate-50 rounded-xl p-4 space-y-2">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Order</p>
                 <p className="text-sm text-slate-700">{selected.items}</p>
@@ -252,7 +256,6 @@ export function VendorOrders() {
                 <p className="text-sm font-semibold text-slate-900">{formatINR(selected.total)} · {selected.payment?.toUpperCase()}</p>
               </div>
 
-              {/* Assign vendor */}
               {selected.status !== "delivered" && selected.status !== "cancelled" && (
                 <div>
                   <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Assign Vendor</p>
@@ -270,7 +273,6 @@ export function VendorOrders() {
                 </div>
               )}
 
-              {/* Actions */}
               {selected.status !== "delivered" && selected.status !== "cancelled" && (
                 <div className="space-y-2">
                   <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Actions</p>

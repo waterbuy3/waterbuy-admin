@@ -1,14 +1,15 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   Store, Phone, MapPin, Wallet, Percent, ToggleLeft, ToggleRight,
-  Search, ChevronRight, X, Save, Loader2, Copy, Check,
-  Landmark, TrendingUp, ShoppingBag, Pencil,
+  X, Save, Loader2, Copy, Check,
+  Landmark, TrendingUp, ShoppingBag, Pencil, ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { db_update } from "@/lib/hooks";
 import { toast } from "sonner";
 import { TableSkeleton } from "@/components/Skeleton";
-import { useDebounce, formatINR } from "@/lib/ui";
+import { formatINR } from "@/lib/ui";
+import { MultiFilter, type FilterMap, matchesFilters, type ColDef } from "@/components/MultiFilter";
 
 interface Vendor {
   id: string; name: string; email: string; phone: string; area: string;
@@ -22,19 +23,33 @@ type EditMode = "profile" | "bank" | "commission" | null;
 
 const inp = "w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50 focus:bg-white transition-all";
 
+const VENDOR_COLS: ColDef[] = [
+  { key: "name",           label: "Name",       type: "text" },
+  { key: "area",           label: "Area",        type: "text" },
+  { key: "email",          label: "Email",       type: "text" },
+  { key: "commission_pct", label: "Commission",  type: "number-range" },
+  { key: "is_open",        label: "Shop Status", type: "select", options: [
+    { value: "true",  label: "Open"   },
+    { value: "false", label: "Closed" },
+  ]},
+  { key: "active", label: "Active", type: "select", options: [
+    { value: "true",  label: "Active"   },
+    { value: "false", label: "Inactive" },
+  ]},
+];
+
 export function Vendors() {
   const [vendors,  setVendors]  = useState<Vendor[]>([]);
   const [orders,   setOrders]   = useState<OrderRow[]>([]);
   const [payouts,  setPayouts]  = useState<PayoutRow[]>([]);
   const [loading,  setLoading]  = useState(true);
-  const [query,    setQuery]    = useState("");
+  const [filters,  setFilters]  = useState<FilterMap>({});
   const [selected, setSelected] = useState<Vendor | null>(null);
   const [saving,   setSaving]   = useState(false);
   const [copied,   setCopied]   = useState(false);
   const [newPayout, setNewPayout] = useState("");
   const [editMode, setEditMode] = useState<EditMode>(null);
 
-  // Edit form state
   const [profileForm, setProfileForm] = useState({ name: "", phone: "", area: "" });
   const [bankForm, setBankForm] = useState({ bank_name: "", bank_account: "", bank_ifsc: "" });
   const [commForm, setCommForm] = useState(10);
@@ -50,7 +65,6 @@ export function Vendors() {
     setVendors(vList);
     setOrders((o.data ?? []) as OrderRow[]);
     setPayouts((p.data ?? []) as PayoutRow[]);
-    // keep selected in sync
     if (selected) {
       const fresh = vList.find((x) => x.id === selected.id);
       if (fresh) setSelected(fresh);
@@ -154,23 +168,10 @@ export function Vendors() {
     return { ordersCount: delivered.length, revenue, pending };
   };
 
-  const debouncedQuery = useDebounce(query, 300);
-
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "open">("all");
-
-  const filtered = useMemo(() => {
-    let list = vendors;
-    if (statusFilter === "active")   list = list.filter((v) => v.active);
-    if (statusFilter === "inactive") list = list.filter((v) => !v.active);
-    if (statusFilter === "open")     list = list.filter((v) => v.active && v.is_open);
-    if (!debouncedQuery.trim()) return list;
-    const q = debouncedQuery.toLowerCase();
-    return list.filter((v) =>
-      v.name.toLowerCase().includes(q) ||
-      v.area?.toLowerCase().includes(q) ||
-      v.email?.toLowerCase().includes(q)
-    );
-  }, [vendors, debouncedQuery, statusFilter]);
+  const filtered = useMemo(
+    () => vendors.filter((v) => matchesFilters(v as unknown as Record<string, unknown>, filters)),
+    [vendors, filters],
+  );
 
   const activeCount = vendors.filter((v) => v.active).length;
   const openCount   = vendors.filter((v) => v.active && v.is_open).length;
@@ -191,24 +192,7 @@ export function Vendors() {
               {copied ? "Copied!" : "Invite Link"}
             </button>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, area, email…" inputMode="search"
-              className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
-          </div>
-          <div className="flex gap-1">
-            {([
-              { key: "all",      label: `All (${vendors.length})`                              },
-              { key: "active",   label: `Active (${vendors.filter(v => v.active).length})`     },
-              { key: "open",     label: `Open (${vendors.filter(v => v.active && v.is_open).length})` },
-              { key: "inactive", label: `Inactive (${vendors.filter(v => !v.active).length})`  },
-            ] as const).map(({ key, label }) => (
-              <button key={key} onClick={() => setStatusFilter(key)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${statusFilter === key ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <MultiFilter columns={VENDOR_COLS} value={filters} onChange={setFilters} />
         </div>
 
         <div className="grid grid-cols-3 gap-3 px-6 py-4">
@@ -229,7 +213,7 @@ export function Vendors() {
             {!loading && filtered.length === 0 ? (
               <div className="py-16 text-center">
                 <Store className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                <p className="text-sm text-slate-400">{query ? "No vendors match your search" : "No vendors yet"}</p>
+                <p className="text-sm text-slate-400">{Object.keys(filters).length > 0 ? "No vendors match your filters" : "No vendors yet"}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -294,7 +278,6 @@ export function Vendors() {
         const stats = vendorStats(selected);
         return (
           <div className="w-full lg:w-[380px] border-l border-slate-200 bg-white flex flex-col overflow-hidden shrink-0">
-            {/* Panel header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <h2 className="text-sm font-bold text-slate-900 truncate max-w-[260px]">{selected.name}</h2>
               <button onClick={() => { setSelected(null); setEditMode(null); }} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
@@ -306,9 +289,9 @@ export function Vendors() {
               {/* Stats */}
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: "Orders",  value: String(stats.ordersCount), icon: ShoppingBag, bg: "bg-blue-50",   ic: "text-blue-600"   },
-                  { label: "Revenue", value: formatINR(stats.revenue),  icon: TrendingUp,  bg: "bg-emerald-50",ic: "text-emerald-600"},
-                  { label: "Pending", value: formatINR(stats.pending),  icon: Wallet,      bg: "bg-amber-50",  ic: "text-amber-600"  },
+                  { label: "Orders",  value: String(stats.ordersCount), icon: ShoppingBag, bg: "bg-blue-50",    ic: "text-blue-600"   },
+                  { label: "Revenue", value: formatINR(stats.revenue),  icon: TrendingUp,  bg: "bg-emerald-50", ic: "text-emerald-600" },
+                  { label: "Pending", value: formatINR(stats.pending),  icon: Wallet,      bg: "bg-amber-50",   ic: "text-amber-600"  },
                 ].map((s) => (
                   <div key={s.label} className="bg-slate-50 rounded-xl p-3">
                     <div className={`w-7 h-7 rounded-lg ${s.bg} flex items-center justify-center mb-2`}>
@@ -320,7 +303,7 @@ export function Vendors() {
                 ))}
               </div>
 
-              {/* ── Business Profile ── */}
+              {/* Business Profile */}
               <div className="bg-slate-50 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Business Profile</p>
@@ -360,7 +343,7 @@ export function Vendors() {
                 )}
               </div>
 
-              {/* ── Bank Details ── */}
+              {/* Bank Details */}
               <div className="bg-slate-50 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Bank Details</p>
@@ -410,7 +393,7 @@ export function Vendors() {
                 )}
               </div>
 
-              {/* ── Commission ── */}
+              {/* Commission */}
               <div className="bg-slate-50 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Commission Rate</p>
@@ -447,7 +430,7 @@ export function Vendors() {
                 )}
               </div>
 
-              {/* ── Vendor Access ── */}
+              {/* Vendor Access */}
               <div>
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Vendor Access</p>
                 <button
@@ -461,7 +444,7 @@ export function Vendors() {
                 </button>
               </div>
 
-              {/* ── Create Payout ── */}
+              {/* Create Payout */}
               <div>
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Create Payout</p>
                 <div className="flex items-center gap-2">

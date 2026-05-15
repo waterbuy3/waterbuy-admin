@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search, Truck, CheckCircle2, Clock, XCircle, Package, ShoppingBag } from "lucide-react";
+import { Truck, CheckCircle2, Clock, XCircle, Package, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection, db_update } from "@/lib/hooks";
 import { isConfigured } from "@/lib/supabase";
@@ -7,7 +7,8 @@ import { type Order, type OrderStatus } from "@/lib/data";
 import { TableSkeleton } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { useDebounce, formatINR, formatDateTime, statusLabel } from "@/lib/ui";
+import { formatINR, formatDateTime, statusLabel } from "@/lib/ui";
+import { MultiFilter, type FilterMap, matchesFilters, type ColDef } from "@/components/MultiFilter";
 
 const STATUS_FLOW: OrderStatus[] = ["pending", "confirmed", "in_transit", "delivered"];
 
@@ -35,30 +36,34 @@ const PAYMENT_LABEL: Record<string, string> = {
 
 const PAGE_SIZE = 25;
 
+const ORDER_COLS: ColDef[] = [
+  { key: "customer", label: "Customer", type: "text" },
+  { key: "phone",    label: "Phone",    type: "text" },
+  { key: "payment",  label: "Payment",  type: "select", options: [
+    { value: "wallet", label: "Wallet" }, { value: "upi", label: "UPI" },
+    { value: "cod",    label: "COD"    }, { value: "card", label: "Card" },
+  ]},
+  { key: "total",     label: "Amount",     type: "number-range", prefix: "₹" },
+  { key: "placed_at", label: "Order Date", type: "date-range" },
+];
+
 export function Orders() {
   const { data: orders, loading } = useCollection<Order>("orders", { orderBy: "placed_at", ascending: false });
   const [filter,   setFilter]   = useState<OrderStatus | "all">("all");
-  const [search,   setSearch]   = useState("");
+  const [filters,  setFilters]  = useState<FilterMap>({});
   const [selected, setSelected] = useState<Order | null>(null);
   const [page, setPage] = useState(1);
   const [confirmCancel, setConfirmCancel] = useState<Order | null>(null);
   const [acting, setActing] = useState(false);
   const [advancing, setAdvancing] = useState<string | null>(null);
 
-  const debouncedSearch = useDebounce(search, 300);
-
   const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
     return orders.filter((o) => {
       if (filter !== "all" && o.status !== filter) return false;
-      if (!q) return true;
-      return o.id.toLowerCase().includes(q)
-        || o.customer.toLowerCase().includes(q)
-        || (o.phone ?? "").includes(q);
+      return matchesFilters(o as unknown as Record<string, unknown>, filters);
     });
-  }, [orders, filter, debouncedSearch]);
+  }, [orders, filter, filters]);
 
-  // Reset page when filter/search changes
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const paged = useMemo(
@@ -128,18 +133,9 @@ export function Orders() {
         onCancel={() => setConfirmCancel(null)}
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-        <h2 className="text-lg font-extrabold text-slate-900">Orders</h2>
-        <div className="flex-1 relative sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search ID, customer, phone…"
-            inputMode="search"
-            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          />
-        </div>
+      <div className="mb-5">
+        <h2 className="text-lg font-extrabold text-slate-900 mb-3">Orders</h2>
+        <MultiFilter columns={ORDER_COLS} value={filters} onChange={(v) => { setFilters(v); setPage(1); }} />
       </div>
 
       {/* Status tabs */}
@@ -219,7 +215,7 @@ export function Orders() {
                       title={orders.length === 0 ? "No orders yet" : "No matching orders"}
                       message={orders.length === 0
                         ? "Orders placed by customers will appear here in real time."
-                        : "Try adjusting your search or filter."}
+                        : "Try adjusting your filters."}
                     />
                   </td></tr>
                 )}
@@ -236,19 +232,11 @@ export function Orders() {
                 of <span className="font-bold text-slate-700">{filtered.length}</span>
               </p>
               <div className="flex gap-1.5">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-600 disabled:opacity-40 hover:bg-slate-50"
-                >Prev</button>
-                <span className="px-3 py-1.5 rounded-lg bg-slate-100 font-bold text-slate-700">
-                  {currentPage} / {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-600 disabled:opacity-40 hover:bg-slate-50"
-                >Next</button>
+                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-600 disabled:opacity-40 hover:bg-slate-50">Prev</button>
+                <span className="px-3 py-1.5 rounded-lg bg-slate-100 font-bold text-slate-700">{currentPage} / {totalPages}</span>
+                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-600 disabled:opacity-40 hover:bg-slate-50">Next</button>
               </div>
             </div>
           )}
@@ -281,7 +269,6 @@ export function Orders() {
                 </div>
               ))}
             </div>
-            {/* Progress */}
             <div className="mt-5 pt-4 border-t border-slate-100">
               <div className="flex items-center gap-1">
                 {STATUS_FLOW.map((s, i) => {
@@ -300,8 +287,7 @@ export function Orders() {
             </div>
             <div className="mt-4 space-y-2">
               {STATUS_FLOW.indexOf(selected.status as OrderStatus) < STATUS_FLOW.length - 1 && selected.status !== "cancelled" && (
-                <button onClick={() => advance(selected.id)}
-                  disabled={advancing === selected.id}
+                <button onClick={() => advance(selected.id)} disabled={advancing === selected.id}
                   className="w-full py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60">
                   {advancing === selected.id ? "Updating…" : "Advance Status →"}
                 </button>

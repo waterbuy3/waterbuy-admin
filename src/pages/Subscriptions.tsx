@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search, PauseCircle, PlayCircle, XCircle, Calendar, Repeat } from "lucide-react";
+import { PauseCircle, PlayCircle, XCircle, Calendar, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection, db_update } from "@/lib/hooks";
 import { isConfigured } from "@/lib/supabase";
@@ -7,7 +7,8 @@ import { type Subscription } from "@/lib/data";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { CardSkeleton } from "@/components/Skeleton";
-import { useDebounce, formatINR, formatDate, statusLabel } from "@/lib/ui";
+import { formatINR, formatDate, statusLabel } from "@/lib/ui";
+import { MultiFilter, type FilterMap, matchesFilters, type ColDef } from "@/components/MultiFilter";
 
 const statusStyle = {
   active:    "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -15,23 +16,29 @@ const statusStyle = {
   cancelled: "bg-red-100 text-red-500 border-red-200",
 };
 
+const SUB_COLS: ColDef[] = [
+  { key: "customer",     label: "Customer",    type: "text" },
+  { key: "phone",        label: "Phone",       type: "text" },
+  { key: "product_name", label: "Product",     type: "text" },
+  { key: "frequency",    label: "Frequency",   type: "text" },
+  { key: "total",        label: "Amount/mo",   type: "number-range", prefix: "₹" },
+  { key: "start_date",   label: "Start Date",  type: "date-range" },
+  { key: "created_at",   label: "Created",     type: "date-range" },
+];
+
 export function Subscriptions() {
   const { data: subs, loading } = useCollection<Subscription>("schedules", { orderBy: "created_at", ascending: false });
-  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<FilterMap>({});
   const [filter, setFilter] = useState<"all" | "active" | "paused" | "cancelled">("all");
   const [confirmCancel, setConfirmCancel] = useState<Subscription | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
-  const debouncedSearch = useDebounce(search, 300);
-
   const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
     return subs.filter((s) => {
       if (filter !== "all" && s.status !== filter) return false;
-      if (!q) return true;
-      return s.customer.toLowerCase().includes(q) || (s.phone ?? "").includes(q) || s.product_name.toLowerCase().includes(q);
+      return matchesFilters(s as unknown as Record<string, unknown>, filters);
     });
-  }, [subs, debouncedSearch, filter]);
+  }, [subs, filter, filters]);
 
   const updateStatus = async (id: string, status: Subscription["status"]) => {
     try {
@@ -76,22 +83,19 @@ export function Subscriptions() {
         onConfirm={performCancel}
         onCancel={() => setConfirmCancel(null)}
       />
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-        <h2 className="text-lg font-extrabold text-slate-900">Scheduled Deliveries</h2>
-        <div className="sm:ml-auto relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Customer, product, phone…" inputMode="search"
-            className="pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-56" />
-        </div>
+
+      <div className="mb-5">
+        <h2 className="text-lg font-extrabold text-slate-900 mb-3">Scheduled Deliveries</h2>
+        <MultiFilter columns={SUB_COLS} value={filters} onChange={setFilters} />
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         {[
-          { label: "Active",       value: counts.active,                          color: "text-emerald-600" },
-          { label: "Paused",       value: counts.paused,                          color: "text-amber-600"   },
-          { label: "Cancelled",    value: counts.cancelled,                       color: "text-red-500"     },
-          { label: "Monthly Rev",  value: formatINR(monthlyRevenue),              color: "text-blue-600"   },
+          { label: "Active",      value: counts.active,           color: "text-emerald-600" },
+          { label: "Paused",      value: counts.paused,           color: "text-amber-600"   },
+          { label: "Cancelled",   value: counts.cancelled,        color: "text-red-500"     },
+          { label: "Monthly Rev", value: formatINR(monthlyRevenue), color: "text-blue-600"  },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
             <p className="text-xs text-slate-400 font-medium">{s.label}</p>
@@ -100,7 +104,7 @@ export function Subscriptions() {
         ))}
       </div>
 
-      {/* Tabs */}
+      {/* Status tabs */}
       <div className="flex gap-2 mb-4">
         {(["all", "active", "paused", "cancelled"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
@@ -133,9 +137,9 @@ export function Subscriptions() {
 
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs flex-1">
                   {[
-                    { lbl: "Product",   val: s.product_name },
-                    { lbl: "Qty",       val: `×${s.quantity}` },
-                    { lbl: "Amount",    val: `${formatINR(s.total)}/mo`, cls: "font-extrabold text-blue-600" },
+                    { lbl: "Product", val: s.product_name },
+                    { lbl: "Qty",     val: `×${s.quantity}` },
+                    { lbl: "Amount",  val: `${formatINR(s.total)}/mo`, cls: "font-extrabold text-blue-600" },
                   ].map(({ lbl, val, cls }) => (
                     <div key={lbl}>
                       <p className="text-slate-400 text-[10px] font-medium">{lbl}</p>
@@ -185,7 +189,7 @@ export function Subscriptions() {
               title={subs.length === 0 ? "No schedules yet" : "No matching schedules"}
               message={subs.length === 0
                 ? "Schedules created by customers will appear here in real time."
-                : "Try changing your search or status filter."}
+                : "Try changing your filters."}
             />
           )}
         </div>

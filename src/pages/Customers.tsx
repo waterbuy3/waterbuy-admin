@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
-  Search, Crown, Phone, Mail, ShoppingBag, Droplets,
+  Crown, Phone, Mail, ShoppingBag, Droplets,
   Store, MapPin, Percent, Check, X, Link, Plus, ToggleLeft, ToggleRight, Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -8,7 +8,8 @@ import { supabase } from "@/lib/supabase";
 import { type Customer } from "@/lib/data";
 import { TableSkeleton } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
-import { useDebounce, formatDate, formatLitres } from "@/lib/ui";
+import { formatDate, formatLitres } from "@/lib/ui";
+import { MultiFilter, type FilterMap, matchesFilters, type ColDef } from "@/components/MultiFilter";
 
 /* ─── Vendor type ─── */
 interface Vendor {
@@ -23,15 +24,40 @@ interface Vendor {
   created_at: string;
 }
 
+/* ─── Column definitions ─── */
+const CUSTOMER_COLS: ColDef[] = [
+  { key: "name",           label: "Name",        type: "text" },
+  { key: "phone",          label: "Phone",        type: "text" },
+  { key: "email",          label: "Email",        type: "text" },
+  { key: "membership_tier",label: "Tier",         type: "select", options: [
+    { value: "prime",    label: "Prime"    },
+    { value: "standard", label: "Standard" },
+  ]},
+  { key: "orders_count", label: "Orders",   type: "number-range" },
+  { key: "created_at",   label: "Joined",   type: "date-range" },
+];
+
+const VENDOR_COLS: ColDef[] = [
+  { key: "name",           label: "Name",       type: "text" },
+  { key: "area",           label: "Area",        type: "text" },
+  { key: "email",          label: "Email",       type: "text" },
+  { key: "commission_pct", label: "Commission",  type: "number-range" },
+  { key: "is_open",        label: "Shop Status", type: "select", options: [
+    { value: "true",  label: "Open"   },
+    { value: "false", label: "Closed" },
+  ]},
+  { key: "active", label: "Active", type: "select", options: [
+    { value: "true",  label: "Active"   },
+    { value: "false", label: "Inactive" },
+  ]},
+];
+
 /* ─── Customers tab ─── */
 function CustomersTab() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading]     = useState(true);
-  const [search, setSearch]       = useState("");
+  const [filters, setFilters]     = useState<FilterMap>({});
   const [selected, setSelected]   = useState<Customer | null>(null);
-  const [tierFilter, setTierFilter] = useState<"all" | "prime" | "standard">("all");
-
-  const debouncedSearch = useDebounce(search, 300);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -54,44 +80,28 @@ function CustomersTab() {
   }, []);
 
   const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
     return customers.filter((c) => {
-      const tier = c.membership_tier ?? "standard";
-      if (tierFilter !== "all" && tier !== tierFilter) return false;
-      if (!q) return true;
-      return (c.name ?? "").toLowerCase().includes(q)
-        || (c.phone ?? "").includes(q)
-        || (c.email ?? "").toLowerCase().includes(q);
+      const row = { ...c, membership_tier: c.membership_tier ?? "standard" };
+      return matchesFilters(row as unknown as Record<string, unknown>, filters);
     });
-  }, [customers, tierFilter, debouncedSearch]);
+  }, [customers, filters]);
 
   const primeCount    = customers.filter(c => c.membership_tier === "prime").length;
   const standardCount = customers.filter(c => c.membership_tier !== "prime").length;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex gap-2">
-          {([
-            { key: "all",      label: "All",      count: customers.length },
-            { key: "prime",    label: "👑 Prime",  count: primeCount       },
-            { key: "standard", label: "Standard",  count: standardCount    },
-          ] as const).map(({ key, label, count }) => (
-            <button key={key} onClick={() => setTierFilter(key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                tierFilter === key
-                  ? "bg-slate-900 text-white border-slate-900"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-              }`}>
-              {label} ({count})
-            </button>
-          ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-2 text-xs font-bold shrink-0">
+          <span className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
+            👑 {primeCount} Prime
+          </span>
+          <span className="px-3 py-1.5 bg-slate-100 text-slate-500 border border-slate-200 rounded-xl">
+            {standardCount} Standard
+          </span>
         </div>
-        <div className="flex-1 relative sm:max-w-xs sm:ml-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} inputMode="search"
-            placeholder="Name, phone, email…"
-            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+        <div className="flex-1 min-w-[280px]">
+          <MultiFilter columns={CUSTOMER_COLS} value={filters} onChange={setFilters} />
         </div>
       </div>
 
@@ -118,7 +128,7 @@ function CustomersTab() {
                       title={customers.length === 0 ? "No customers yet" : "No matching customers"}
                       message={customers.length === 0
                         ? "Customers will appear here when they sign up in the app."
-                        : "Try a different search or tier filter."}
+                        : "Try a different filter."}
                     />
                   </td></tr>
                 ) : filtered.map((c) => (
@@ -183,7 +193,7 @@ function CustomersTab() {
             </div>
             <div className="grid grid-cols-2 gap-2 mb-5">
               {[
-                { icon: ShoppingBag, value: selected.orders_count ?? 0,   label: "Orders",   color: "text-blue-600 bg-blue-50" },
+                { icon: ShoppingBag, value: selected.orders_count ?? 0,   label: "Orders",    color: "text-blue-600 bg-blue-50" },
                 { icon: Droplets,    value: formatLitres(selected.litres_delivered), label: "Delivered", color: "text-cyan-600 bg-cyan-50" },
               ].map((s) => (
                 <div key={s.label} className={`rounded-xl p-3 text-center ${s.color}`}>
@@ -215,7 +225,7 @@ function CustomersTab() {
 function VendorsTab() {
   const [vendors, setVendors]     = useState<Vendor[]>([]);
   const [loading, setLoading]     = useState(true);
-  const [search, setSearch]       = useState("");
+  const [filters, setFilters]     = useState<FilterMap>({});
   const [selected, setSelected]   = useState<Vendor | null>(null);
   const [editComm, setEditComm]   = useState<number | null>(null);
   const [savingComm, setSavingComm] = useState(false);
@@ -229,7 +239,6 @@ function VendorsTab() {
 
   const selectedRef = useRef<Vendor | null>(null);
   selectedRef.current = selected;
-  const debouncedSearch = useDebounce(search, 300);
 
   const fetchVendors = async () => {
     if (!supabase) { setLoading(false); return; }
@@ -256,15 +265,10 @@ function VendorsTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return vendors;
-    return vendors.filter((v) =>
-      v.name.toLowerCase().includes(q) ||
-      (v.area ?? "").toLowerCase().includes(q) ||
-      (v.email ?? "").toLowerCase().includes(q),
-    );
-  }, [vendors, debouncedSearch]);
+  const filtered = useMemo(
+    () => vendors.filter((v) => matchesFilters(v as unknown as Record<string, unknown>, filters)),
+    [vendors, filters],
+  );
 
   const toggleActive = async (v: Vendor) => {
     if (!supabase) return;
@@ -307,8 +311,8 @@ function VendorsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex gap-2 text-xs font-bold">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-2 text-xs font-bold shrink-0">
           <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">
             {activeCount} Active
           </span>
@@ -316,18 +320,13 @@ function VendorsTab() {
             {inactiveCount} Inactive
           </span>
         </div>
-        <div className="flex gap-2 sm:ml-auto">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} inputMode="search"
-              placeholder="Name, area, email…"
-              className="pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-52" />
-          </div>
-          <button onClick={() => setShowInvite(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors">
-            <Plus className="h-3.5 w-3.5" /> Invite Vendor
-          </button>
+        <div className="flex-1 min-w-[280px]">
+          <MultiFilter columns={VENDOR_COLS} value={filters} onChange={setFilters} />
         </div>
+        <button onClick={() => setShowInvite(true)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shrink-0">
+          <Plus className="h-3.5 w-3.5" /> Invite Vendor
+        </button>
       </div>
 
       <div className="flex gap-4">
@@ -353,7 +352,7 @@ function VendorsTab() {
                       title={vendors.length === 0 ? "No vendors yet" : "No matching vendors"}
                       message={vendors.length === 0
                         ? "Share the vendor registration link to onboard your first distributor."
-                        : "Try a different search."}
+                        : "Try a different filter."}
                       action={vendors.length === 0 ? (
                         <button onClick={() => setShowInvite(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors">
                           <Plus className="h-3.5 w-3.5" /> Invite Vendor
@@ -478,7 +477,6 @@ function VendorsTab() {
               )}
             </div>
 
-            {/* Toggle active */}
             <button
               onClick={() => toggleActive(selected)}
               disabled={togglingId === selected.id}
@@ -515,9 +513,7 @@ function VendorsTab() {
               <code className="flex-1 text-[11px] text-slate-700 truncate">{vendorAppUrl}</code>
               <button onClick={copyLink}
                 className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 ${
-                  copied
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
+                  copied ? "bg-emerald-100 text-emerald-700" : "bg-blue-600 text-white hover:bg-blue-700"
                 }`}>
                 {copied ? <><Check className="h-3 w-3" /> Copied!</> : <><Link className="h-3 w-3" /> Copy</>}
               </button>

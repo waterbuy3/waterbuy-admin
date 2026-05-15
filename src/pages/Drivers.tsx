@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Truck, Phone, Star, MapPin, Package, Plus, X, Search } from "lucide-react";
+import { Truck, Phone, Star, MapPin, Package, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection, db_add, db_update, db_delete } from "@/lib/hooks";
 import { isConfigured } from "@/lib/supabase";
@@ -7,13 +7,26 @@ import { type Driver } from "@/lib/data";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { CardSkeleton } from "@/components/Skeleton";
-import { useDebounce } from "@/lib/ui";
+import { MultiFilter, type FilterMap, matchesFilters, type ColDef } from "@/components/MultiFilter";
 
 const statusStyle = {
   available: { dot: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   on_route:  { dot: "bg-blue-500",    badge: "bg-blue-100 text-blue-700 border-blue-200"          },
   off_duty:  { dot: "bg-slate-400",   badge: "bg-slate-100 text-slate-500 border-slate-200"        },
 };
+
+const DRIVER_COLS: ColDef[] = [
+  { key: "name",    label: "Name",    type: "text" },
+  { key: "phone",   label: "Phone",   type: "text" },
+  { key: "zone",    label: "Zone",    type: "text" },
+  { key: "vehicle", label: "Vehicle", type: "text" },
+  { key: "status",  label: "Status",  type: "select", options: [
+    { value: "available", label: "Available" },
+    { value: "on_route",  label: "On Route"  },
+    { value: "off_duty",  label: "Off Duty"  },
+  ]},
+  { key: "rating", label: "Rating", type: "number-range" },
+];
 
 function AddDriverModal({ onSave, onClose }: { onSave: (d: Omit<Driver, "id">) => void; onClose: () => void }) {
   const [form, setForm] = useState<Omit<Driver, "id">>({
@@ -43,10 +56,10 @@ function AddDriverModal({ onSave, onClose }: { onSave: (d: Omit<Driver, "id">) =
         </div>
         <div className="px-6 py-4 grid grid-cols-2 gap-3">
           {[
-            { label: "Full Name", key: "name",    type: "text", full: true  },
-            { label: "Phone",     key: "phone",   type: "text", full: false },
-            { label: "Vehicle",   key: "vehicle", type: "text", full: false },
-            { label: "Zone",      key: "zone",    type: "text", full: false },
+            { label: "Full Name", key: "name",    type: "text",   full: true  },
+            { label: "Phone",     key: "phone",   type: "text",   full: false },
+            { label: "Vehicle",   key: "vehicle", type: "text",   full: false },
+            { label: "Zone",      key: "zone",    type: "text",   full: false },
             { label: "Rating",    key: "rating",  type: "number", full: false },
           ].map(({ label, key, type, full }) => (
             <div key={key} className={full ? "col-span-2" : ""}>
@@ -75,17 +88,11 @@ function AddDriverModal({ onSave, onClose }: { onSave: (d: Omit<Driver, "id">) =
 export function Drivers() {
   const { data: drivers, loading } = useCollection<Driver>("drivers", { orderBy: "created_at", ascending: true });
   const [addOpen, setAddOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "available" | "on_route" | "off_duty">("all");
-  const debouncedSearch = useDebounce(search, 300);
+  const [filters, setFilters] = useState<FilterMap>({});
 
   const filtered = useMemo(() => {
-    let list = drivers;
-    if (statusFilter !== "all") list = list.filter((d) => d.status === statusFilter);
-    const q = debouncedSearch.trim().toLowerCase();
-    if (q) list = list.filter((d) => d.name.toLowerCase().includes(q) || (d.zone ?? "").toLowerCase().includes(q) || (d.phone ?? "").includes(q));
-    return list;
-  }, [drivers, statusFilter, debouncedSearch]);
+    return drivers.filter((d) => matchesFilters(d as unknown as Record<string, unknown>, filters));
+  }, [drivers, filters]);
 
   const toggleDuty = async (d: Driver) => {
     const next = d.status === "off_duty" ? "available" : d.status === "available" ? "off_duty" : d.status;
@@ -142,26 +149,8 @@ export function Drivers() {
         </button>
       </div>
 
-      {/* Search + status filter */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, zone, phone…" inputMode="search"
-            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-        </div>
-        <div className="flex gap-1">
-          {([
-            { key: "all",       label: "All"       },
-            { key: "available", label: "Available" },
-            { key: "on_route",  label: "On Route"  },
-            { key: "off_duty",  label: "Off Duty"  },
-          ] as const).map(({ key, label }) => (
-            <button key={key} onClick={() => setStatusFilter(key)}
-              className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all ${statusFilter === key ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}>
-              {label}
-            </button>
-          ))}
-        </div>
+      <div className="mb-5">
+        <MultiFilter columns={DRIVER_COLS} value={filters} onChange={setFilters} />
       </div>
 
       {/* Stats */}
@@ -186,7 +175,7 @@ export function Drivers() {
         <EmptyState
           icon={Truck}
           title={drivers.length === 0 ? "No drivers yet" : "No matching drivers"}
-          message={drivers.length === 0 ? "Add your first delivery driver to start assigning orders." : "Try a different search or status filter."}
+          message={drivers.length === 0 ? "Add your first delivery driver to start assigning orders." : "Try a different filter."}
           action={drivers.length === 0 ? (
             <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-extrabold rounded-xl hover:bg-blue-700 transition-colors">
               <Plus className="h-3.5 w-3.5" /> Add First Driver
