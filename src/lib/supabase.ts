@@ -11,7 +11,14 @@ export const isSupabaseConfigured =
 export const isConfigured = isSupabaseConfigured;
 
 export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        flowType: "implicit",       // localStorage-only — works in PWA standalone
+        persistSession: true,
+        detectSessionInUrl: true,
+        autoRefreshToken: true,
+      },
+    })
   : null;
 
 export type { User };
